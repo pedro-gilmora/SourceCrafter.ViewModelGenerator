@@ -1,0 +1,41 @@
+name: HttPie.Generator build and deploy
+
+on:
+  push:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    name: .NET 7 Build
+    runs-on: ubuntu-latest
+
+    steps:      
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 7.0.x
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Test
+      run: dotnet test Mvvm.Extensions.UnitTests/Mvvm.Extensions.UnitTests.csproj --verbosity normal -c Release
+
+  deploy:
+    name: .NET 7 Deploy to Nuget package
+    if: github.ref_name == 'dev'
+    needs: build
+    runs-on: ubuntu-latest
+    
+  
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 7.0.x    
+    - name: Pack
+      run: dotnet pack Mvvm.Extensions.Generator/Mvvm.Extensions.Generator.csproj --verbosity normal -c Release /p:PackageReleaseNotes="${{ github.event.head_commit.message }}"
+    - name: Publish to Nuget
+      run: |
+        package="$(find . -wholename '**/Release/*.nupkg' -exec echo "{}" \;)"
+        dotnet nuget push $package --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
