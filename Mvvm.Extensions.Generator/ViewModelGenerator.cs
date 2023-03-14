@@ -140,7 +140,7 @@ using {u};")}
             fields.AddNested(typeName, (fieldName, property.Type.IsReferenceType));
         
         if (isCommand)
-            return GenerateCommandProperty(ref commandMethods, attributeDatas, typeName, propName, fieldName);
+            return GenerateCommandProperty(ref commandMethods, usings, attributeDatas, typeName, propName, fieldName);
 
         UpdatePropertyChangeFields(ref propertyChangeFields, propName, fieldName);
 
@@ -192,9 +192,13 @@ using {u};")}
         return propertyChangeFields;
     }
 
-    private static object GenerateCommandProperty(ref string commandMethods, ImmutableArray<AttributeData> attributeDatas, string typeName, string propName, string fieldName)
+    private static object GenerateCommandProperty(ref string commandMethods, HashSet<string> usings, ImmutableArray<AttributeData> attributeDatas, string typeName, string propName, string fieldName)
     {
         var isAsync = typeName.StartsWith("AsyncRelayCommand");
+
+        if(isAsync)
+            RegisterNamespace(usings, "System.Threading.Tasks");
+
         GetAttrOpts(attributeDatas, out bool checkExec, out string asyncOption);
         string
             baseMethodName = $"Execute{propName[0..^7]}", methodName = $"{baseMethodName}{(isAsync ? "Async" : "")}",
