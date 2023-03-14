@@ -168,7 +168,7 @@ using {u};")}
                 ? ""
                 : $@"
         set {{
-            if(value == {backingValue}) 
+            if(value == {(isImplementedProperty ? propName : fieldName)}) 
                 return;
             {backingValue} = value;
             OnPropertyChanged({fieldName}ChangedEvtArg);{(propReferences.TryGetValue(propName, out var refs)
@@ -264,7 +264,7 @@ using {u};")}
                             
                             getterBody ??= accessor.ToString();
                         }
-                        else if (accessor is { Modifiers: var mod, Body: var body, ExpressionBody: var exprBody, RawKind: (int)SyntaxKind.SetAccessorDeclaration })
+                        else if (accessor is { Modifiers: var mod, Body: var body, ExpressionBody.Expression: var exprBody, RawKind: (int)SyntaxKind.SetAccessorDeclaration })
                         {                                
                             UpdatePropertyReferencing(GetAssignedDependentProperties, accessor, model, containingType, propName, propertyReferences);
                             

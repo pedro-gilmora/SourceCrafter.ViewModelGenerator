@@ -20,6 +20,7 @@ namespace Mvvm.Extensions.UnitTests
         [Ignore]
         string? LastName { get; set; }
         string Name => $"{FirstName} {LastName}".Trim();
+        bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
         int Age { get; set; }
         bool CanDrink { get; set; }
         bool IsUnder18
