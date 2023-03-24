@@ -224,13 +224,28 @@ using {usg};")
 
             propsSb.AppendFormat("public {0} {1} ", typeName, propName);
 
-            if (!isReadOnly)
+            if(ignore && (getter,setter) is (null, null))
+            {
+                propsSb.Append("{");
+                if(!propInfo.IsWriteOnly)
+                    propsSb.Append(" get;");
+                if(!propInfo.IsReadOnly)
+                    propsSb.Append(" set;");
+                propsSb.Append(" }");
+                
+                return;
+            }
+
+
+            if (!isReadOnly || ignore)
                 propsSb.Append(@"{
         get");
 
             if (isImplemented)
+            {
                 propsSb
                     .AppendFormat(" {0};", getter);
+            }
             else
             {
                 if (!ignore)
@@ -258,7 +273,16 @@ using {usg};")
                 return;
             ", isImplemented ? propName : fieldName);
 
-                if (setter != null)
+                if (!isImplemented)
+                {
+                    propsSb
+                        .AppendFormat("{0} = value;", fieldName);
+                    needsNotifyMethod = true;
+                    if (!propReferences.ContainsKey(propName))
+                        propReferences.Add(propName, new());
+                }
+                else
+                {
                     if (setter is BlockSyntax bs)
                         bs.Statements
                             .Aggregate(propsSb, (sb, st) => sb
@@ -266,13 +290,6 @@ using {usg};")
                     else
                         propsSb
                             .Append(setter);
-                else if (!isImplemented)
-                {
-                    propsSb
-                        .AppendFormat("{0} = value;", fieldName);
-                    needsNotifyMethod = true;
-                    if (!propReferences.ContainsKey(propName))
-                        propReferences.Add(propName, new());
                 }
 
                 propsSb.AppendFormat(@"

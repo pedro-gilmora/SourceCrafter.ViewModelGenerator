@@ -19,13 +19,15 @@ public interface IUser
 {
     string AgeStatus => $""You're {(Is18 ? """" : ""not "")}old enough"";
     string FirstName { get; set; }
-    //[Ignore]
     string? LastName { get; set; }
+    [Ignore]
+    ITest Test {get;}
     string Name => $""{FirstName} {LastName}"".Trim();
     int Age { get;set }
     bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
     AsyncRelayCommand<string?> AddManagerCommand { get; }
-}").GetRoot();
+}
+public interface ITest {}").GetRoot();
             var e = CSharpCompilation.Create("Test", 
                 new[] { root.SyntaxTree }, 
                 new[] {
