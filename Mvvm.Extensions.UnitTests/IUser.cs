@@ -1,7 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using Mvvm.Extensions.Generator.Attributes;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 
 namespace Mvvm.Extensions.UnitTests
 {
@@ -20,17 +18,12 @@ namespace Mvvm.Extensions.UnitTests
         [Ignore]
         string? LastName { get; set; }
         string Name => $"{FirstName} {LastName}".Trim();
-        bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
+        string AgeStatus => $"You're {(IsUnder18 ? "not " : "")}old enough";
         int Age { get; set; }
-        bool CanDrink { get; set; }
         bool IsUnder18
         {
-            get => Age >= 18;
-            set
-            {
-                Age = value ? 18 : 17;
-                if (IsUnder18) CanDrink = true; else CanDrink = false;
-            }
+            get => Age < 18;
+            set => Age = IsUnder18 ? 17 : Age;
         }
         AsyncRelayCommand<Role> AddParentCommand { get; }
     }
