@@ -31,8 +31,8 @@ namespace Mvvm.Extensions.UnitTests
 
     public partial class User
     {
-        //private partial bool CanExecuteAddParent(Role parameter) => true;
+        private partial bool CanExecuteExit() => true;
 
-        //private partial Task ExecuteAddParentAsync(Role parameter) => Task.CompletedTask;
+        private partial Task ExecuteExitAsync() => Task.CompletedTask;
     }
 }
