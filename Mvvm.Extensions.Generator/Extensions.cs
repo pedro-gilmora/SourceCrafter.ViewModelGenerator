@@ -38,7 +38,6 @@ namespace Mvvm.Extensions.Generator
             property.GetAttributes().Any(attr => attr.AttributeClass?.Name is "IgnoreAttribute" or "Ignore");
 
         private const int 
-            //GetAccessorDeclaration = (int)SyntaxKind.GetAccessorDeclaration,
             SetAccessorDeclaration = (int)SyntaxKind.SetAccessorDeclaration;
 
         private static CSharpSyntaxNode? TryReduceMethod(IMethodSymbol? method) => (method?.DeclaringSyntaxReferences.LastOrDefault()?.GetSyntax() as AccessorDeclarationSyntax) switch

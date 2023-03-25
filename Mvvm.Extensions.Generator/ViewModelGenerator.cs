@@ -79,15 +79,7 @@ using {usg};")
                 .Insert(0, @"
 #nullable enable")
                 .Insert(0, @"//<auto generated>");
-//
-//             var classCode = $@"namespace {};
-//
-// public partial class {name} : ViewModelBase, {interfaceName} 
-// {{
-//     {new[] { fields, propertyChangeFields, properties, commandMethods }.Where(e => e.Length > 0).Join(@"
-//
-//     ")}
-// }}";
+
             return ($"{name}.g.cs", code.ToString());
         }
         catch (Exception e)
@@ -173,16 +165,7 @@ using {usg};")
                             .AppendIf(info.isRef, () => " = default!");
                         return fSb;
                     }).sb.Append(";");
-                })
-                ;
-        //         fieldsSb = fieldsHash.Select(info => $@"private {info.Key} 
-        //     {info.Value.Join(u => $"{u.name}{(u.isRef ? " = default!" : "")}", @",
-        //     ")};").Join(@"
-        // ");
-        //     if (fieldsSb.Length > 0)
-        //         yield return fieldsSb;
-        // if (commandMethods.Length > 0)
-        //     yield return commandMethods;
+                });
     }
 
     private static IEnumerable<IPropertySymbol> GetAllMembers(ITypeSymbol interfaceSymbol)
@@ -303,7 +286,6 @@ using {usg};")
     private static SymbolEqualityComparer _defaultSymbolComparer = SymbolEqualityComparer.Default;
     private static void CollectDependencies(IPropertySymbol propInfo, Dictionary<string,HashSet<string>> propReferences, SemanticModel model, HashSet<CSharpSyntaxNode> readProps, IPropertySymbol parent)
     {
-        // if no setter, just navigate
         if(propInfo.GetMethod?.DeclaringSyntaxReferences
             .LastOrDefault()
             ?.GetSyntax()
@@ -378,14 +360,7 @@ using {usg};")
             propsSb.AppendFormat(", {0}", asyncOption);
 
         propsSb.Append(");");
-        
-        
-//         commandMethodsSb += $@"{(checkExec ? $@"private partial bool Can{baseMethodName}({parameterSyntax});
-//
-//     " : "")}private partial {(isAsync ? "Task" : "void")} {methodName}({parameterSyntax});";
-//
-//         return
-//             $@"public {typeName} {propName} => {fieldName} ??= new {typeName}({methodName}{(checkExec ? $", Can{baseMethodName}" : "")}{(isAsync ? $", {asyncOption}" : "")});";
+
     }
 
     private static void GetAttrOpts(ImmutableArray<AttributeData> attributeDatas, out bool checkExec, out string asyncOption)
@@ -437,7 +412,7 @@ using {usg};")
         ImmutableArray<SyntaxReference> references, ITypeSymbol containingType, Dictionary<string, HashSet<string>> propertyReferences, SemanticModel model,
         string propName)
     {
-        //Each reference of property declaration
+
         foreach (var declRef in references)
         {
             if (declRef?.GetSyntax() is PropertyDeclarationSyntax propSyntax && !readProps.Contains(propSyntax))
@@ -474,8 +449,6 @@ using {usg};")
                         (defAf, defAcc, defAcc)
                 };
 
-                // CollectGetterDependencies(propertyReferences, propSyntax, exprBody ?? (CSharpSyntaxNode)getterAccesor!, readProps);
-
                 if (setterAccesor is not null)
                     propsSb.Append("{");
 
@@ -510,9 +483,6 @@ using {usg};")
         if (!readProps.Contains(getterAccesor))
         {
             readProps.Add(getterAccesor);
-            //si la propiedad actual tiene setter
-            //coleccionar las dependencias
-            //y añadir la de otras a las que la referieran si no son solo lectura
 
             foreach (var id in getterAccesor.DescendantNodes().OfType<IdentifierNameSyntax>())
             {
