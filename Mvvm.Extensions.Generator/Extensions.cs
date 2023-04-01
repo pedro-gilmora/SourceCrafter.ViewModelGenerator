@@ -17,9 +17,11 @@ namespace Mvvm.Extensions.Generator
             out bool isImplemented,
             out CSharpSyntaxNode? getter,
             out CSharpSyntaxNode? setter,
+            out bool isCommand,
             out bool isReadOnly,
             out bool ignore)
         {
+            isCommand = propSymbol.Type.Name.Contains("RelayCommand") && propSymbol.Name.EndsWith("Command");
             (isImplemented, isReadOnly, getter, setter, ignore) = propSymbol switch
             {
                 { IsIndexer: false, DeclaringSyntaxReferences: [.., { } propSyntaxRef] } when propSyntaxRef.GetSyntax() is PropertyDeclarationSyntax { ExpressionBody: { } body } =>
@@ -34,23 +36,33 @@ namespace Mvvm.Extensions.Generator
             };
         }
 
-        private static bool IgnoreProperty(IPropertySymbol property) => 
+        private static bool IgnoreProperty(IPropertySymbol property) =>
             property.GetAttributes().Any(attr => attr.AttributeClass?.Name is "IgnoreAttribute" or "Ignore");
 
-        private const int 
+        public static bool ContainsAttribute(this ISymbol property, string namespce, string attrName) =>
+            property.GetAttributes().Any(attr =>
+            {
+                return attr.AttributeClass is { Name: { } name, ContainingNamespace: { } cNamespace } &&
+                                cNamespace.ToString() == namespce &&
+                                name.StartsWith(attrName);
+            });
+        public static bool ContainsAttribute(this IPropertySymbol property, string attrName) =>
+            property.GetAttributes().Any(attr => attr.AttributeClass?.Name?.StartsWith(attrName) ?? false);
+
+        private const int
             SetAccessorDeclaration = (int)SyntaxKind.SetAccessorDeclaration;
 
         private static CSharpSyntaxNode? TryReduceMethod(IMethodSymbol? method) => (method?.DeclaringSyntaxReferences.LastOrDefault()?.GetSyntax() as AccessorDeclarationSyntax) switch
-            {
-                { RawKind: {} kind, ExpressionBody: { } retValue } =>
-                    kind == SetAccessorDeclaration 
-                        ? ExpressionStatement(retValue.Expression) 
-                        : retValue,
-                { RawKind: {} kind, Body.Statements: [{ } retValue] } =>
-                    retValue,
-                var ret =>
-                    ret?.Body as CSharpSyntaxNode
-            };
+        {
+            { RawKind: { } kind, ExpressionBody: { } retValue } =>
+                kind == SetAccessorDeclaration
+                    ? ExpressionStatement(retValue.Expression)
+                    : retValue,
+            { RawKind: { } kind, Body.Statements: [{ } retValue] } =>
+                retValue,
+            var ret =>
+                ret?.Body
+        };
 
         public static bool HasName(this string clsName, AttributeData attr) => attr.AttributeClass?.Name == clsName;
         public static string Join<T>(this IEnumerable<T> strs, Func<T, string> formmater, string? separator = "")
@@ -64,8 +76,6 @@ namespace Mvvm.Extensions.Generator
                 builder.Append(getter());
             return builder;
         }
-        
-        
 
         public static StringBuilder AppendFormatIf(this StringBuilder builder, bool condition, Func<StringFormatter, StringBuilder> ifAppend, Func<StringFormatter, StringBuilder>? elseAppend = null)
         {
@@ -97,13 +107,15 @@ namespace Mvvm.Extensions.Generator
             return strs.Join(t => t?.ToString() ?? "", separator);
         }
 
-        public static void AddNested<TList, TKey, TValueItem>(this Dictionary<TKey, TList> listHash, TKey key, TValueItem valueItem)
+        public static void AddNested<TList, TKey, TValueItem>(this IDictionary<TKey, TList> listHash, TKey key, TValueItem valueItem)
             where TList : ICollection<TValueItem>, new()
         {
             if (listHash.TryGetValue(key, out var valueItems))
+            {
                 valueItems.Add(valueItem);
-            else
-                listHash.Add(key, new() { valueItem });
+            }
+            valueItems = new() { valueItem };
+            listHash.Add(key, valueItems);
         }
 
         public static T[] ArrayFrom<T>(params T[] items) => items;

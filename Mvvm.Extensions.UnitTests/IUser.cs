@@ -14,25 +14,38 @@ namespace Mvvm.Extensions.UnitTests
     [ObservableModel]
     public interface IUser
     {
-        bool IsValidCredential { get; set; }
-        Visibility VisibleBasedOnAuth => IsLoggedOn ? Visibility.Visible : Visibility.Collapsed;
-        bool IsLoggedOn => Service.IsLoggedOn && IsValidCredential;
-        string TopLabelText => IsLoggedOn ? "Hi, user" : "Initializating...";
-        [Ignore]
-        IMultiBotService Service { get; }
-        AsyncRelayCommand ExitCommand { get; }
+    //    string ActionName => $"Action is called: {Action.Name}";
+    //    IAction Action { get; set; }
+    //[Ignore]
+    //    string? LastName { get; set; }
+        //string FirstName { get; set; }
+        //string Name => $"{FirstName} {LastName}".Trim();
+        //bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
+        //int Age { get; set; }
+        //bool CanDrink { get; set; }
+        //bool IsUnder18
+        //{
+        //    get => Age >= 18;
+        //    set
+        //    {
+        //        Age = value ? 18 : 17;
+        //        if (IsUnder18) CanDrink = true; 
+        //        else CanDrink = false;
+        //    }
+        //}
+        //AsyncRelayCommand<Role> SaveCommand { get; }
     }
 
-    public enum Visibility {
-        Visible,
-        Collapsed
+    [ObservableModel]
+    public interface IAction
+    {
+        string Name { get; set; }
     }
-    public interface IMultiBotService { bool IsLoggedOn { get; } }
 
     public partial class User
     {
-        private partial bool CanExecuteExit() => true;
+        //private partial bool CanExecuteSave(Role parameter) => true;
 
-        private partial Task ExecuteExitAsync() => Task.CompletedTask;
+        //private partial Task ExecuteSaveAsync(Role parameter) => Task.CompletedTask;
     }
 }
