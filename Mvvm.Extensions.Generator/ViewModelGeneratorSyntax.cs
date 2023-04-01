@@ -36,7 +36,7 @@ namespace Mvvm.Extensions.Generator
             ClassName = _interfaceName[1..];
 
             _properties = GetAllMembers(interfaceSymbol)
-                .Select(p => GatherPropertyInfo(ref _needsNotifyMethod, usings, readProps, p, model, _propReferences, _fields))
+                .Select(p => GatherPropertyInfo(ref _needsNotifyMethod, usings, p, model, _propReferences, _fields))
                 .ToArray();
 
             FileName = $"{_namespace}.{ClassName}.g.cs";
@@ -53,7 +53,6 @@ namespace Mvvm.Extensions.Generator
         private static PropertySyntaxInfo GatherPropertyInfo(
             ref bool needsNotifyMethod,
             HashSet<string> usings,
-            HashSet<CSharpSyntaxNode> readProps,
             IPropertySymbol propInfo,
             SemanticModel model,
             Dictionary<string, Dictionary<string, HashSet<string>>> propReferences,
@@ -68,29 +67,26 @@ namespace Mvvm.Extensions.Generator
 
             var info = PropertySyntaxInfo.Create(propInfo, typeName, propName, fieldName);
 
-            if (info.IsCommand)
-            {
-                if (info.CommandInfo.IsAsync)
-                    RegisterNamespace(usings, "System.Threading.Tasks");
-            }
-            else if (info is { Getter: { } })
+            if (info.Getter is { })
             {
                 CollectDependencies(propInfo, propReferences, model, propInfo);
             }
 
-            if (info is { IsImplemented: false, IsReadOnly: false, Ignore: false })
+            if (info is { IsImplemented: false, Ignore: false })
             {
-                fields.AddNested(typeName, (fieldName, ShouldAddInitializer(propInfo)));
+                if(!info.IsReadOnly || info.IsCommand)
+                    fields.AddNested(typeName, (fieldName, ShouldAddInitializer(propInfo)));
+
                 if (!info.IsCommand)
-                {
                     needsNotifyMethod = true;
-                }
+                else if (info.CommandInfo.IsAsync)
+                    RegisterNamespace(usings, "System.Threading.Tasks");
             }
 
             return info;
         }
 
-        private static bool ShouldAddInitializer(IPropertySymbol propInfo) => 
+        private static bool ShouldAddInitializer(IPropertySymbol propInfo) =>
             propInfo.Type.NullableAnnotation != NullableAnnotation.Annotated &&
                 ((propInfo.Type.SpecialType is SpecialType.System_String or SpecialType.System_Object) ||
                     propInfo.Type.TypeKind is TypeKind.Class or TypeKind.TypeParameter || propInfo.Type.IsRecord);
@@ -217,15 +213,15 @@ namespace Mvvm.Extensions.Generator
                 .LastOrDefault()
                 ?.GetSyntax()
                 .DescendantNodes()
-                .OfType<IdentifierNameSyntax>() is { } ids)
+                .OfType<IdentifierNameSyntax>() is { } ids) // Get all identifiers in the expression tree from the getter accessor 
             {
                 MemberAccessExpressionSyntax? lastAccessExpr = default;
                 foreach (var item in ids)
                 {
-                    if (item.Parent is MemberAccessExpressionSyntax { Span.End: var end } memberAccessExpr && end != item.Span.End)
+                    if (item.Parent is MemberAccessExpressionSyntax { Span.End: var end } memberAccessExpr && end != item.Span.End) // it's a parentPropName MemberAccessExpressionSyntax for the current identifier 
                     {
                         lastAccessExpr ??= memberAccessExpr;
-                        continue;
+                        continue; //Skip to last Identifier in the MemberAccessExpressionSyntax
                     }
 
                     if (model.GetSymbolInfo(item) switch
@@ -235,21 +231,32 @@ namespace Mvvm.Extensions.Generator
                         { CandidateSymbols: [IPropertySymbol { } p] candidates } => p,
                         _ => null
 
-                    } is { } prop)
+                    } is { } prop) //If it found a symbol
                     {
-                        if (item.Parent == lastAccessExpr && model.GetSymbolInfo(lastAccessExpr!.Expression) is { Symbol: IPropertySymbol { Type: { } prnt } } &&
-                            prnt.ContainsAttribute("Mvvm.Extensions.Generator.Attributes", "ObservableModel") &&
-                            !_defaultSymbolComparer.Equals(prop.ContainingType, parent.ContainingType))
+                        string propName = string.Intern(prop.Name);
+                        bool isSameType = _defaultSymbolComparer.Equals(prop.ContainingType, parent.ContainingType);
+                        if (
+                            item.Parent == lastAccessExpr && //The parentPropName is a MemberAccessExpressionSyntax too
+                            model.GetSymbolInfo(lastAccessExpr!.Expression) is { Symbol: IPropertySymbol { Type: { } prnt } } && // its owning symbols is a IPropertySymbol
+                            prnt.ContainsAttribute("Mvvm.Extensions.Generator.Attributes", "ObservableModel") && // it's an observable model
+                            !isSameType // it's from a different type
+                        )
                         {
-                            UpdateReferences(propReferences, lastAccessExpr.Expression.ToString(), parent, "$" + lastAccessExpr.Name.ToString());
-                            //propReferences.AddNested(lastAccessExpr.Expression.ToString(), $"{parent.Name}:{lastAccessExpr.Name}");
+                            UpdateReferences(propReferences, lastAccessExpr.Expression.ToString(), propName, "$" + lastAccessExpr.Name);
+                            lastAccessExpr = null;
                         }
-                        else if (!prop.ContainsAttribute("Ignore"))
+                        else if (!prop.ContainsAttribute("Ignore")) // the property should not be marked as ignore
                         {
-                            if (!_defaultSymbolComparer.Equals(prop, propInfo) && !prop.IsReadOnly)
+                            if (lastAccessExpr != null && 
+                                model.GetSymbolInfo(lastAccessExpr.Expression) is { Symbol: IPropertySymbol { ContainingType: { } type } maep } &&
+                                _defaultSymbolComparer.Equals(type, propInfo.ContainingType)) 
                             {
-                                UpdateReferences(propReferences, prop.Name, propInfo);
-                                UpdateReferences(propReferences, prop.Name, parent);
+                                UpdateReferences(propReferences, maep.Name, propInfo.Name);
+                            }
+                            else if (!_defaultSymbolComparer.Equals(prop, propInfo) && !prop.IsReadOnly)// are not the same type nor readonly
+                            {
+                                UpdateReferences(propReferences, propName, propInfo.Name);
+                                UpdateReferences(propReferences, propName, parent.Name);
                             }
                             CollectDependencies(prop, propReferences, model, parent);
                         }
@@ -259,24 +266,24 @@ namespace Mvvm.Extensions.Generator
             }
         }
 
-        private static void UpdateReferences(Dictionary<string, Dictionary<string, HashSet<string>>> propReferences, string key1, IPropertySymbol parent, string? lastAccessExpr = null)
+        private static void UpdateReferences(Dictionary<string, Dictionary<string, HashSet<string>>> propReferences, string key1, string parentPropName, string? lastAccessExpr = null)
         {
-            HashSet<string> value = new() {  };
+            HashSet<string> value = new() { };
 
             if (lastAccessExpr != null)
-                value.Add(parent.Name);
+                value.Add(parentPropName);
 
             if (propReferences.TryGetValue(key1, out var hash))
             {
-                if(!hash.TryGetValue(parent.Name, out var subHash))
-                    hash[parent.Name] = value;
+                if (!hash.TryGetValue(parentPropName, out var subHash))
+                    hash[parentPropName] = value;
                 if (lastAccessExpr != null && hash.TryGetValue(lastAccessExpr, out subHash))
-                    subHash.Add(parent.Name);
+                    subHash.Add(parentPropName);
             }
             else
-                propReferences[key1] = lastAccessExpr != null 
-                    ? new() { { lastAccessExpr, value } } 
-                    : new() { { parent.Name, value } };
+                propReferences[key1] = lastAccessExpr != null
+                    ? new() { { lastAccessExpr, value } }
+                    : new() { { parentPropName, value } };
         }
 
         private static string GetType(HashSet<string> usings, ITypeSymbol type)
@@ -353,7 +360,7 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
     private {0}", kv.Key);
 
                 initLen = code.Length;
-                
+
                 kv.Value.Aggregate(start, (_, fieldInfo) =>
                 {
                     if (code.Length > initLen)
@@ -398,8 +405,9 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
                     _propReferences
                         .Aggregate(
                             code,
-                            (_, pInfo) => {
-                
+                            (_, pInfo) =>
+                            {
+
                                 code.AppendFormat(@"
             case nameof({0}):", pInfo.Key);
 
@@ -432,7 +440,7 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
                                     }
                                     else
                                     {
-                                        if(openSubscription == 1)
+                                        if (openSubscription == 1)
                                         {
                                             openSubscription = 0;
                                             code.Append(@"
@@ -459,7 +467,7 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
         }");
                 }
 
-                    code.Append(@"
+                code.Append(@"
     }");
             }
 

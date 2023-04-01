@@ -21,29 +21,26 @@ namespace Test {
     {
         string ActionName => $""Action is called: {Action.Name}"";
         IAction Action { get; set; }
-        //string FirstName { get; set; }
-        //[Ignore]
-        //string? LastName { get; set; }
-        //string Name => $""{FirstName} {LastName}"".Trim();
-        //string AgeStatus => $""You're {(Is18 ? """" : ""not "")}old enough"";
-        //[Ignore]
-        //ITest Test {get;}
-        //int Age { get;set }
-        //bool Is18 { 
-        //    get => Age == 18; 
-        //    set { 
-        //        if(value)
-        //            Age = 18;
-        //    }
-        //}
-        //AsyncRelayCommand<string?> AddManagerCommand { get; }
+        string FirstName { get; set; }
+        [Ignore]
+        string? LastName { get; set; }
+        string Name => $""{FirstName} {LastName}"".Trim();
+        string AgeStatus => $""You're {(Is18 ? """" : ""not "")}old enough"";
+        int Age { get;set }
+        bool Is18 { 
+            get => Age == 18; 
+            set { 
+                if(value)
+                    Age = 18;
+            }
+        }
+        AsyncRelayCommand<string?> AddManagerCommand { get; }
     }
 
     [ObservableModel]
     public interface IAction {
         string Name { get; set; }
     }
-    public interface ITest {}
 }
 
 namespace Mvvm.Extensions.Generator.Attributes { 
