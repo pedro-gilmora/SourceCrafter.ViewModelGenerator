@@ -114,8 +114,10 @@ namespace Mvvm.Extensions.Generator
             {
                 valueItems.Add(valueItem);
             }
-            valueItems = new() { valueItem };
-            listHash.Add(key, valueItems);
+            else
+            {
+                listHash.Add(key, new() { valueItem });
+            }
         }
 
         public static T[] ArrayFrom<T>(params T[] items) => items;

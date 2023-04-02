@@ -16,6 +16,22 @@ namespace Mvvm.Extensions.UnitTests
         {
             var root = CSharpSyntaxTree.ParseText(@"using Mvvm.Extensions.Generator.Attributes;
 namespace Test {
+
+    [ObservableModel]
+    public interface IAuthentication
+    {
+        string? Email { get; set; }
+        string? Password { get; set; }
+        string? Token { get; set; }
+        bool IsBusy { get; set; }
+        bool CanLogin => !IsBusy && !string.IsNullOrEmpty(Email?.Trim()) && !string.IsNullOrEmpty(Password?.Trim());
+
+        [CommandOptions(false)]
+        AsyncRelayCommand LoginCommand { get; }
+        [CommandOptions(false)]
+        AsyncRelayCommand LogoutCommand { get; }
+    }
+
     [ObservableModel]
     public interface IUser
     {
@@ -41,10 +57,6 @@ namespace Test {
     public interface IAction {
         string Name { get; set; }
     }
-}
-
-namespace Mvvm.Extensions.Generator.Attributes { 
-    public class ObservableModelAttribute : Attribute {}
 }").GetRoot();
             var e = CSharpCompilation.Create("Test", 
                 new[] { root.SyntaxTree }, 
@@ -53,9 +65,10 @@ namespace Mvvm.Extensions.Generator.Attributes {
                     MetadataReference.CreateFromFile(typeof(CommandOptionsAttribute).Assembly.Location)
                 });
             var sm = e.GetSemanticModel(root.SyntaxTree);
-            ITypeSymbol iface = sm.GetDeclaredSymbol(root.DescendantNodes().OfType<InterfaceDeclarationSyntax>().First())!;
-            var script = new ViewModelGeneratorSyntax(iface, sm).ToString();
-            Trace.WriteLine(script);
+            foreach (var iface in root.DescendantNodes().OfType<InterfaceDeclarationSyntax>()){
+                var script = new ViewModelGeneratorSyntax(sm.GetDeclaredSymbol(iface)!, sm).ToString();
+                Trace.WriteLine(script); 
+            }
         }
 
         [Fact]
