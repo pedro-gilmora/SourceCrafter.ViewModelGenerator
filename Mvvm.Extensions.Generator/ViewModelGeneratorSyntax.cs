@@ -209,6 +209,7 @@ namespace Mvvm.Extensions.Generator
 
         private static void CollectDependencies(IPropertySymbol propInfo, Dictionary<string, Dictionary<string, HashSet<string>>> propReferences, SemanticModel model, IPropertySymbol parent)
         {
+
             if (propInfo.GetMethod?.DeclaringSyntaxReferences
                 .LastOrDefault()
                 ?.GetSyntax()
@@ -216,6 +217,7 @@ namespace Mvvm.Extensions.Generator
                 .OfType<IdentifierNameSyntax>() is { } ids) // Get all identifiers in the expression tree from the getter accessor 
             {
                 MemberAccessExpressionSyntax? lastAccessExpr = default;
+
                 foreach (var item in ids)
                 {
                     if (item.Parent is MemberAccessExpressionSyntax { Span.End: var end } memberAccessExpr && end != item.Span.End) // it's a parentPropName MemberAccessExpressionSyntax for the current identifier 
@@ -223,6 +225,7 @@ namespace Mvvm.Extensions.Generator
                         lastAccessExpr ??= memberAccessExpr;
                         continue; //Skip to last Identifier in the MemberAccessExpressionSyntax
                     }
+                    else if(item.Parent is IsPatternExpressionSyntax)
 
                     if (model.GetSymbolInfo(item) switch
                     {
@@ -242,7 +245,7 @@ namespace Mvvm.Extensions.Generator
                             !isSameType // it's from a different type
                         )
                         {
-                            UpdateReferences(propReferences, lastAccessExpr.Expression.ToString(), propName, "$" + lastAccessExpr.Name);
+                            UpdateReferences(propReferences, lastAccessExpr.Expression.ToString(), parent.Name, "$" + lastAccessExpr.Name);
                             lastAccessExpr = null;
                         }
                         else if (!prop.ContainsAttribute("Ignore")) // the property should not be marked as ignore
