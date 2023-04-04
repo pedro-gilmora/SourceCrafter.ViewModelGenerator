@@ -18,6 +18,16 @@ namespace Mvvm.Extensions.UnitTests
 namespace Test {
 
     [ObservableModel]
+    public interface IAppManager
+    {
+        IUser? User { get; set; }
+
+        IAuthentication Authentication { get; set; }
+
+        bool IsAuthenticated => Authentication.Token is { };
+    }
+
+    [ObservableModel]
     public interface IAuthentication
     {
         string? Email { get; set; }

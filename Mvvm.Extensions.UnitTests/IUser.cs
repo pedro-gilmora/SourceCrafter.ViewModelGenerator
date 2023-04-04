@@ -33,7 +33,7 @@ namespace Mvvm.Extensions.UnitTests
         //        else CanDrink = false;
         //    }
         //}
-        //AsyncRelayCommand<Role> SaveCommand { get; }
+        RelayCommand<Role> SaveCommand { get; }
     }
 
     [ObservableModel]
@@ -44,8 +44,10 @@ namespace Mvvm.Extensions.UnitTests
 
     public partial class User
     {
-        //private partial bool CanExecuteSave(Role parameter) => true;
+        private partial bool CanExecuteSave(Role parameter) => true;
 
-        //private partial Task ExecuteSaveAsync(Role parameter) => Task.CompletedTask;
+        partial void ExecuteSave(Role parameter)
+        {
+        }
     }
 }

@@ -194,16 +194,16 @@ namespace Mvvm.Extensions.Generator
 
             builder.Append(@");
 
-    private partial ");
+    ");
 
             if (info.CheckExec)
-                builder.AppendFormat(@"bool Can{0}({1});
+                builder.AppendFormat(@"private partial bool Can{0}({1});
 
-    private partial", baseMethodName, parameterSyntax);
+    ", baseMethodName, parameterSyntax);
 
             builder
-                .AppendFormat(@" {0} {1}({2});
-    ", info.IsAsync ? "Task" : "void", methodName, parameterSyntax);
+                .AppendFormat(@"{0} {1}({2});
+    ", info.IsAsync ? "private partial Task" : "partial void", methodName, parameterSyntax);
 
         }
 
