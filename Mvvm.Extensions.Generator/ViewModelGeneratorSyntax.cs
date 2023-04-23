@@ -1,13 +1,20 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Collections.Specialized;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Xml.Linq;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Mvvm.Extensions.Generator
 {
@@ -16,7 +23,7 @@ namespace Mvvm.Extensions.Generator
         readonly HashSet<string> usings = new(new[] { "Mvvm.Extensions.Generator", "System.ComponentModel", "CommunityToolkit.Mvvm.Input" });
         readonly HashSet<CSharpSyntaxNode> readProps = new();
 
-        readonly Dictionary<string, Dictionary<string, HashSet<string>>> _propReferences = new();
+        readonly PropertyDependencyTree dependencies = new();
         readonly Dictionary<string, List<(string name, bool isRef)>> _fields = new();
 
         private bool _needsNotifyMethod;
@@ -28,6 +35,8 @@ namespace Mvvm.Extensions.Generator
         public readonly string FileName;
 
         private static readonly SymbolEqualityComparer _defaultSymbolComparer = SymbolEqualityComparer.Default;
+        internal const string NAMESPACE = "Mvvm.Extensions.Generator.Attributes";
+        internal const string ATTRIBUTE = "ObservableModelAttribute";
 
         public ViewModelGeneratorSyntax(ITypeSymbol interfaceSymbol, SemanticModel model)
         {
@@ -36,7 +45,7 @@ namespace Mvvm.Extensions.Generator
             ClassName = _interfaceName[1..];
 
             _properties = GetAllMembers(interfaceSymbol)
-                .Select(p => GatherPropertyInfo(ref _needsNotifyMethod, usings, p, model, _propReferences, _fields))
+                .Select(p => GatherPropertyInfo(ref _needsNotifyMethod, usings, p, model, dependencies, _fields))
                 .ToArray();
 
             FileName = $"{_namespace}.{ClassName}.g.cs";
@@ -55,11 +64,10 @@ namespace Mvvm.Extensions.Generator
             HashSet<string> usings,
             IPropertySymbol propInfo,
             SemanticModel model,
-            Dictionary<string, Dictionary<string, HashSet<string>>> propReferences,
+            PropertyDependencyTree propReferences,
             Dictionary<string, List<(string, bool)>> fields
         )
         {
-
             string
                 typeName = GetType(usings, propInfo.Type),
                 propName = propInfo.Name,
@@ -67,14 +75,14 @@ namespace Mvvm.Extensions.Generator
 
             var info = PropertySyntaxInfo.Create(propInfo, typeName, propName, fieldName);
 
-            if (info.Getter is { })
+            if (!info.Ignore && info.Getter != null)
             {
-                CollectDependencies(propInfo, propReferences, model, propInfo);
+                CollectDependencies(info.Getter, propReferences, model, propName);
             }
 
             if (info is { IsImplemented: false, Ignore: false })
             {
-                if(!info.IsReadOnly || info.IsCommand)
+                if (!info.IsReadOnly || info.IsCommand)
                     fields.AddNested(typeName, (fieldName, ShouldAddInitializer(propInfo)));
 
                 if (!info.IsCommand)
@@ -91,202 +99,105 @@ namespace Mvvm.Extensions.Generator
                 ((propInfo.Type.SpecialType is SpecialType.System_String or SpecialType.System_Object) ||
                     propInfo.Type.TypeKind is TypeKind.Class or TypeKind.TypeParameter || propInfo.Type.IsRecord);
 
-        static void BuildProperty(StringBuilder builder, PropertySyntaxInfo info)
+        private static void CollectDependencies(SyntaxNode getter, PropertyDependencyTree dependencies, SemanticModel model, string propName)
         {
-            if (info.IsCommand)
+            var pos = getter.Span.Start;
+
+            if (getter is IdentifierNameSyntax getterId && 
+                model.GetSymbolInfo(getterId).Symbol is IPropertySymbol pGetter)
             {
-                BuildCommandProperty(builder, info.Type, info.Name, info.FieldName, info.CommandInfo);
+                dependencies.AddDependencies(true, pGetter).NotifyTo.Add(propName);
             }
             else
-            {
-                builder.AppendFormat(@"
-    public {0} {1} ", info.Type, info.Name);
 
-                if (info.Ignore && (info.Getter, info.Setter) is (null, null))
+                foreach (var e in getter.DescendantNodes().OfType<ExpressionSyntax>())
                 {
-                    builder.Append("{");
-                    if (!info.IsWriteOnly)
-                        builder.Append(" get;");
-                    if (!info.IsReadOnly)
-                        builder.Append(" set;");
-                    builder.Append(" }");
+                    if (pos >= e.Span.End || e.Span.Start < pos || e.Parent is InvocationExpressionSyntax)
+                        continue;
 
-                    return;
-                }
-
-
-                if (!info.IsReadOnly || info.Ignore)
-                    builder.Append(@"{
-        get");
-
-                if (info.IsImplemented)
-                {
-                    builder
-                        .AppendFormat(" {0};", info.Getter);
-                }
-                else
-                {
-                    if (!info.Ignore)
+                    if (e is InterpolatedStringExpressionSyntax interpolationExpr)
                     {
-                        builder.AppendFormat(" => {0}", info.FieldName);
+                        foreach (var interpolation in interpolationExpr.Contents.OfType<InterpolationSyntax>())
+                        {
+                            if(interpolation.Span.Start < pos)
+                                continue;
+                            pos = interpolation.Span.End;
+                            CollectDependencies(interpolation.ChildNodes().First(), dependencies, model, propName);
+                        }
                     }
-                    builder.Append(";");
+                    else if (e is IsPatternExpressionSyntax isPattern)
+                    {
+                        pos = e.Span.End;
+                        foreach (var ids in ExtractDependantTree(isPattern, model))
+                        {
+
+                            var lastWasReactive = true;
+                            var deps = dependencies;
+
+                            foreach (var id in ids)
+                                if (lastWasReactive)
+                                {
+                                    deps = deps.AddDependencies(true, id);
+                                    deps.NotifyTo.Add(propName);
+                                    lastWasReactive = IsNotifiable(id);
+                                }
+                        }
+                    }
+                    else if (e is ConditionalAccessExpressionSyntax or MemberAccessExpressionSyntax)
+                    {
+                        pos = e.Span.End;
+
+                        var lastWasReactive = true;
+                        var deps = dependencies;
+
+                        foreach (var id in GetIdentifiers(e, model))
+                            if (lastWasReactive)
+                            {
+                                deps = deps.AddDependencies(true, id);
+                                deps.NotifyTo.Add(propName);
+                                lastWasReactive = IsNotifiable(id);
+                            }
+                    }
+                    else if (e is IdentifierNameSyntax id && 
+                        model.GetSymbolInfo(id).Symbol is IPropertySymbol p)
+                    {
+                        dependencies.AddDependencies(true, p).NotifyTo.Add(propName);
+                    }
                 }
-
-                if (!info.IsReadOnly)
-                {
-                    builder.Append(@"
-        set");
-                    if (info.Ignore)
-                    {
-                        builder.Append(@"; 
-    }");
-                        return;
-                    }
-                    builder.AppendFormat(@" {{
-            if(value == {0})
-                return;
-            ", info.IsImplemented ? info.Name : info.FieldName);
-
-                    if (!info.IsImplemented)
-                    {
-                        builder
-                            .AppendFormat("{0} = value;", info.FieldName);
-                    }
-                    else
-                    {
-                        if (info.Setter is BlockSyntax bs)
-                            bs.Statements
-                                .Aggregate(builder, (sb, st) => sb
-                                    .AppendFormat(@"
-").Append(st));
-                        else
-                            builder
-                                .Append(info.Setter);
-                    }
-
-                    builder.AppendFormat(@"
-            NotifyChange(new(nameof({0})));
-        }}
-    }}", info.Name);
-                }
-            }
         }
 
-        private static void BuildCommandProperty(StringBuilder builder, string typeName, string propName, string fieldName, CommandInfo info)
+        private static bool IsNotifiable(IPropertySymbol id)
         {
-            string
-                baseMethodName = $"Execute{propName[0..^7]}",
-                methodName = $"{baseMethodName}{(info.IsAsync ? "Async" : "")}",
-                parameterSyntax = typeName.IndexOf("<", StringComparison.Ordinal) is { } a and > 0 &&
-                                  typeName[a..(typeName.LastIndexOf('>') + 1)] is ['<', .. { Length: > 0 } genericArgumentName, '>'] ?
-                    $"{genericArgumentName} parameter"
-                    : "";
-
-            builder.AppendFormat(@"
-    public {0} {1} => {2} ??= new {0}({3}", typeName, propName, fieldName, methodName);
-
-            if (info.CheckExec)
-                builder.AppendFormat(", Can{0}", baseMethodName);
-
-            if (info.IsAsync)
-                builder.AppendFormat(", {0}", info.AsyncOption);
-
-            builder.Append(@");
-
-    ");
-
-            if (info.CheckExec)
-                builder.AppendFormat(@"private partial bool Can{0}({1});
-
-    ", baseMethodName, parameterSyntax);
-
-            builder
-                .AppendFormat(@"{0} {1}({2});
-    ", info.IsAsync ? "private partial Task" : "partial void", methodName, parameterSyntax);
-
+            return id.Type.HasAttribute(NAMESPACE, ATTRIBUTE);
         }
 
-        private static void CollectDependencies(IPropertySymbol propInfo, Dictionary<string, Dictionary<string, HashSet<string>>> propReferences, SemanticModel model, IPropertySymbol parent)
+        static IEnumerable<IEnumerable<IPropertySymbol>> ExtractDependantTree(IsPatternExpressionSyntax isPattern, SemanticModel model)
         {
-
-            if (propInfo.GetMethod?.DeclaringSyntaxReferences
-                .LastOrDefault()
-                ?.GetSyntax()
+            return isPattern.Pattern
                 .DescendantNodes()
-                .OfType<IdentifierNameSyntax>() is { } ids) // Get all identifiers in the expression tree from the getter accessor 
-            {
-                MemberAccessExpressionSyntax? lastAccessExpr = default;
-
-                foreach (var item in ids)
-                {
-                    if (item.Parent is MemberAccessExpressionSyntax { Span.End: var end } memberAccessExpr && end != item.Span.End) // it's a parentPropName MemberAccessExpressionSyntax for the current identifier 
-                    {
-                        lastAccessExpr ??= memberAccessExpr;
-                        continue; //Skip to last Identifier in the MemberAccessExpressionSyntax
-                    }
-                    else if(item.Parent is IsPatternExpressionSyntax)
-
-                    if (model.GetSymbolInfo(item) switch
-                    {
-                        { Symbol: IPropertySymbol p } => p,
-
-                        { CandidateSymbols: [IPropertySymbol { } p] candidates } => p,
-                        _ => null
-
-                    } is { } prop) //If it found a symbol
-                    {
-                        string propName = string.Intern(prop.Name);
-                        bool isSameType = _defaultSymbolComparer.Equals(prop.ContainingType, parent.ContainingType);
-                        if (
-                            item.Parent == lastAccessExpr && //The parentPropName is a MemberAccessExpressionSyntax too
-                            model.GetSymbolInfo(lastAccessExpr!.Expression) is { Symbol: IPropertySymbol { Type: { } prnt } } && // its owning symbols is a IPropertySymbol
-                            prnt.ContainsAttribute("Mvvm.Extensions.Generator.Attributes", "ObservableModel") && // it's an observable model
-                            !isSameType // it's from a different type
-                        )
-                        {
-                            UpdateReferences(propReferences, lastAccessExpr.Expression.ToString(), parent.Name, "$" + lastAccessExpr.Name);
-                            lastAccessExpr = null;
-                        }
-                        else if (!prop.ContainsAttribute("Ignore")) // the property should not be marked as ignore
-                        {
-                            if (lastAccessExpr != null && 
-                                model.GetSymbolInfo(lastAccessExpr.Expression) is { Symbol: IPropertySymbol { ContainingType: { } type } maep } &&
-                                _defaultSymbolComparer.Equals(type, propInfo.ContainingType)) 
-                            {
-                                UpdateReferences(propReferences, maep.Name, propInfo.Name);
-                            }
-                            else if (!_defaultSymbolComparer.Equals(prop, propInfo) && !prop.IsReadOnly)// are not the same type nor readonly
-                            {
-                                UpdateReferences(propReferences, propName, propInfo.Name);
-                                UpdateReferences(propReferences, propName, parent.Name);
-                            }
-                            CollectDependencies(prop, propReferences, model, parent);
-                        }
-                    }
-
-                }
-            }
+                .OfType<SubpatternSyntax>()
+                .Where(el => el.Pattern is not RecursivePatternSyntax)
+                .Select(subPattern =>
+                    GetIdentifiers(isPattern.Expression, model)
+                        .Concat(EnumerateParentPatterns(subPattern.ExpressionColon!, isPattern.Pattern, model)));
         }
 
-        private static void UpdateReferences(Dictionary<string, Dictionary<string, HashSet<string>>> propReferences, string key1, string parentPropName, string? lastAccessExpr = null)
+        static IEnumerable<IPropertySymbol> EnumerateParentPatterns(BaseExpressionColonSyntax exprCol, PatternSyntax topPattern, SemanticModel model)
         {
-            HashSet<string> value = new() { };
+            return exprCol
+                .Ancestors()
+                .TakeWhile(ec => ec != topPattern)
+                .Where(eca => eca is SubpatternSyntax pattern && pattern != exprCol.Parent)
+                .SelectMany(eca => GetIdentifiers(((SubpatternSyntax)eca).ExpressionColon!, model))
+                .Reverse()
+                .Concat(GetIdentifiers(exprCol, model));
+        }
 
-            if (lastAccessExpr != null)
-                value.Add(parentPropName);
-
-            if (propReferences.TryGetValue(key1, out var hash))
-            {
-                if (!hash.TryGetValue(parentPropName, out var subHash))
-                    hash[parentPropName] = value;
-                if (lastAccessExpr != null && hash.TryGetValue(lastAccessExpr, out subHash))
-                    subHash.Add(parentPropName);
-            }
-            else
-                propReferences[key1] = lastAccessExpr != null
-                    ? new() { { lastAccessExpr, value } }
-                    : new() { { parentPropName, value } };
+        static IEnumerable<IPropertySymbol> GetIdentifiers(SyntaxNode expressionColon, SemanticModel model)
+        {
+            foreach (var item in expressionColon.DescendantNodesAndSelf())
+                if (item is IdentifierNameSyntax && model.GetSymbolInfo(item).Symbol is IPropertySymbol prop)
+                    yield return prop;
         }
 
         private static string GetType(HashSet<string> usings, ITypeSymbol type)
@@ -341,7 +252,7 @@ namespace Mvvm.Extensions.Generator
 
         public override string ToString()
         {
-            StringBuilder code = new StringBuilder().Append(@"//<auto generated>
+            var code = new StringBuilder().Append(@"//<auto generated>
 #nullable enable");
             //Generate usings
             usings.Aggregate(code, (sb, us) => sb.AppendFormat(@"
@@ -353,6 +264,31 @@ namespace {0};
 
 public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _interfaceName);
 
+            BuildFields(code);
+
+            BuildProperties(code);
+
+            if (_needsNotifyMethod)
+            {
+                code.Append(@"
+
+    protected void NotifyChange(PropertyChangedEventArgs evtArgs) {
+        OnPropertyChanged(evtArgs);");
+
+                BuildSwitch(code, dependencies);
+
+                code.Append(@"
+    }");
+            }
+
+            code.Append(@"
+}");
+            return code.ToString();
+
+        }
+
+        private void BuildFields(StringBuilder code)
+        {
             int initLen = code.Length;
 
             //Build fields syntax
@@ -380,107 +316,180 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
 
                 return start.Append(";");
             });
+        }
 
-            initLen = code.Length;
-
+        void BuildProperties(StringBuilder code)
+        {
             //Build properies
-            foreach (var pInfo in _properties)
+            foreach (var prop in _properties)
             {
                 code.Append(@"
     ");
+                var hasDependencies = dependencies.TryGetValue(prop.Symbol, out var deps) && deps.NotifyTo.Any();
 
-                BuildProperty(code, pInfo);
-            }
-
-
-
-            if (_needsNotifyMethod)
-            {
-                code.Append(@"
-
-    protected void NotifyChange(PropertyChangedEventArgs evtArgs) {
-        OnPropertyChanged(evtArgs);");
-
-                if (_propReferences.Values.Any(v => v.Any()))
+                if (prop.IsCommand)
                 {
-                    code.Append(@"
-        switch(evtArgs.PropertyName){");
-                    _propReferences
-                        .Aggregate(
-                            code,
-                            (_, pInfo) =>
-                            {
-
-                                code.AppendFormat(@"
-            case nameof({0}):", pInfo.Key);
-
-                                var openSubscription = 0;
-
-                                foreach (var item in pInfo.Value.OrderByDescending(v => v.Key.StartsWith("$")))
-                                {
-                                    if (item.Key.StartsWith("$"))
-                                    {
-                                        if (openSubscription == 0)
-                                        {
-                                            openSubscription = 1;
-                                            code.AppendFormat(@"
-                ({0} as IObservable)?.Subscribe((s, a) => 
-                {{
-                    switch(a.PropertyName){{", pInfo.Key);
-                                        }
-
-                                        code.AppendFormat(@"
-                        case ""{0}"":", item.Key[1..]);
-
-                                        foreach (var item2 in item.Value)
-                                        {
-                                            code.AppendFormat(@"
-                            OnPropertyChanged(new(nameof({0})));", item2);
-
-                                        }
-                                        code.Append(@"
-                            break;");
-                                    }
-                                    else
-                                    {
-                                        if (openSubscription == 1)
-                                        {
-                                            openSubscription = 0;
-                                            code.Append(@"
-                    }
-                });");
-                                        }
-                                        code.AppendFormat(@"
-                OnPropertyChanged(new(nameof({0})));", item.Key);
-                                    }
-
-
-                                }
-                                if (openSubscription == 1)
-                                {
-                                    openSubscription = 0;
-                                    code.Append(@"
-                    }
-                });");
-                                }
-
-                                return code.Append(@"
-                break;");
-                            }).Append(@"
-        }");
+                    BuildCommandProperty(code, prop.Type, prop.Name, prop.BackingField, prop.CommandInfo);
                 }
+                else
+                {
+                    code.AppendFormat(@"
+    public {0} {1}", prop.Type, prop.Name);
+
+                    if (prop.IsReadOnly && (prop.IsSingleStatementGetter))
+                    {
+                        code.Append($" => {prop.Getter};");
+                        continue;
+                    }
+
+                    code.Append(" {");
+
+                    if (!prop.IsWriteOnly)
+                    {
+                        code.Append($@"{(prop.IsReadOnly || prop.Ignore ? " " : @"
+        ")}get");
+
+                        if (prop.UseBackingField || prop.IsSingleStatementGetter)
+                            code.Append(" =>");
+
+                        code.Append($" {(prop.UseBackingField ? prop.BackingField : prop.Getter)}".TrimEnd());
+
+                        if (!prop.IsImplemented || prop.IsSingleStatementGetter)
+                            code.Append(";");
+
+
+                        if (prop.IsReadOnly)
+                            continue;
+                    }
+
+                    if (!prop.IsReadOnly)
+                    {
+                        code.Append(prop.IsWriteOnly || prop.Ignore ? " " : @"
+        ");
+                        code.Append("set");
+
+                        if (prop.Ignore)
+                        {
+                            if(prop.IsSingleStatementSetter)
+                                code.Append(" =>");
+
+                            code.Append($" {prop.Setter}".TrimEnd());
+
+                            if(prop.IsSingleStatementSetter || prop.Getter == null)
+                                code.Append(";");
+
+                            if (!prop.IsImplemented)
+                            {
+                                code.Append(" }");
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            code.Append($@" {{
+            if(Equals(value, {(prop.UseBackingField ? prop.BackingField : prop.Name)}))
+                return;
+            ");
+
+                            if (prop.UseBackingField && !prop.IsWriteOnly)
+                                code.Append($@"{prop.BackingField} = value;");
+
+                            if (!prop.IsSingleStatementSetter && prop.Setter is BlockSyntax bs)
+                                bs.Statements
+                                    .Aggregate(code, (sb, st) => sb
+                                        .Append($@"
+            {st}"));
+                            else if (prop.Setter != null)
+                                code.Append(prop.Setter)
+                                    .Append(";");
+
+                            code.Append($@"
+            {(hasDependencies ? "NotifyChange" : "OnPropertyChanged")}(new(""{prop.Name}""));");
+
+                            code.Append(@"
+        }");
+                        }
+
+                    }
 
                 code.Append(@"
     }");
-            }
 
-            code.Append(@"
-}");
-            return code.ToString();
+                }
+            }
+        }
+
+        private static void BuildCommandProperty(StringBuilder builder, string typeName, string propName, string fieldName, CommandInfo info)
+        {
+            string
+                baseMethodName = $"Execute{propName[0..^7]}",
+                methodName = $"{baseMethodName}{(info.IsAsync ? "Async" : "")}",
+                parameterSyntax = typeName.IndexOf("<", StringComparison.Ordinal) is { } a and > 0 &&
+                                  typeName[a..(typeName.LastIndexOf('>') + 1)] is ['<', .. { Length: > 0 } genericArgumentName, '>'] ?
+                    $"{genericArgumentName} parameter"
+                    : "";
+
+            builder.AppendFormat(@"
+    public {0} {1} => {2} ??= new {0}({3}", typeName, propName, fieldName, methodName);
+
+            if (info.CheckExec)
+                builder.AppendFormat(", Can{0}", baseMethodName);
+
+            if (info.IsAsync)
+                builder.AppendFormat(", {0}", info.AsyncOption);
+
+            builder.Append(@");
+
+    ");
+
+            if (info.CheckExec)
+                builder.AppendFormat(@"private partial bool Can{0}({1});
+
+    ", baseMethodName, parameterSyntax);
+
+            builder
+                .AppendFormat(@"{0} {1}({2});
+    ", info.IsAsync ? "private partial Task" : "partial void", methodName, parameterSyntax);
 
         }
 
-        internal record struct PropertySyntaxInfo(string Type, string Name, string FieldName, bool IsImplemented, CSharpSyntaxNode? Getter, CSharpSyntaxNode? Setter, bool IsReadOnly, bool IsWriteOnly, bool Ignore, bool IsCommand, CommandInfo CommandInfo)
+        private void BuildSwitch(StringBuilder code, PropertyDependencyTree dependencies, int indent = 2, string parentEvtArgName = "evtArgs", int level = 0)
+        {
+            if (dependencies.Count == 0) return;
+
+            string indentStr = new(' ', indent * 4);
+
+            code.Append($@"
+{indentStr}switch({parentEvtArgName}.PropertyName){{");
+            foreach (var (prop, deps) in dependencies)
+            {
+                code.Append($@"
+{indentStr}    case ""{prop.Name}"":");
+
+                if (deps.Count > 0)
+                {
+                    code.Append($@"
+{indentStr}        ({prop.Name} as IObservable)?.Subscribe((s{level}, e{level}) => {{");
+                    BuildSwitch(code, deps, indent + 3, $"e{level}", level + 1);
+                    code.Append($@"
+{indentStr}        }});");
+                }
+
+                foreach (var item in deps.NotifyTo)
+                {
+                    code.Append($@"
+{indentStr}        OnPropertyChanged(new(""{item}""));");
+                }
+
+                code.Append($@"
+{indentStr}    break;");
+            }
+
+            code.Append($@"
+{indentStr}}}");
+        }
+
+        internal record struct PropertySyntaxInfo(string Type, string Name, string BackingField, bool IsImplemented, CSharpSyntaxNode? Getter, CSharpSyntaxNode? Setter, bool IsReadOnly, bool IsWriteOnly, bool Ignore, bool IsCommand, CommandInfo CommandInfo)
         {
             public static PropertySyntaxInfo Create(IPropertySymbol propSymbol, string typeName, string propName, string fieldName)
             {
@@ -489,7 +498,7 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
 
                 var (isImplemented, isReadOnly, isWriteOnly, getter, setter, ignore) = propSymbol switch
                 {
-                    { IsIndexer: false, DeclaringSyntaxReferences: [.., { } propSyntaxRef] } when propSyntaxRef.GetSyntax() is PropertyDeclarationSyntax { ExpressionBody: { } body } =>
+                    { IsIndexer: false, DeclaringSyntaxReferences: [.., { } propSyntaxRef] } when propSyntaxRef.GetSyntax() is PropertyDeclarationSyntax { ExpressionBody.Expression: { } body } =>
                         (true, true, false, body, null, propSymbol.ContainsAttribute("Ignore")),
                     { IsIndexer: false, GetMethod: var getMethod, SetMethod: var setMethod, IsReadOnly: var isRo, IsWriteOnly: var isWo } =>
                         (!(getMethod?.IsAbstract ?? true),
@@ -504,24 +513,33 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
                 string? asyncOption = default;
                 if (isCommand)
                     GetCommandOptions(propSymbol.GetAttributes(), out checkExec, out asyncOption);
-                return new(typeName, propName, fieldName, isImplemented, getter, setter, isReadOnly, isWriteOnly, ignore, isCommand, new(isAsyncCommand, checkExec, asyncOption));
+                return new(typeName, propName, fieldName, isImplemented, getter, setter, isReadOnly, isWriteOnly, ignore, isCommand, new(isAsyncCommand, checkExec, asyncOption))
+                {
+                    Symbol = propSymbol,
+                    IsSingleStatementGetter = getter is { } and not BlockSyntax,
+                    IsSingleStatementSetter = setter is { } and not BlockSyntax
+                };
             }
 
-            private const int
-                SetAccessorDeclaration = (int)SyntaxKind.SetAccessorDeclaration;
+            private const int SetAccessorDeclaration = (int)SyntaxKind.SetAccessorDeclaration,
+                GetAccessorDeclaration = (int)SyntaxKind.GetAccessorDeclaration;
 
-            private static CSharpSyntaxNode? TryReduceMethod(IMethodSymbol? method) => (method?.DeclaringSyntaxReferences.LastOrDefault()?.GetSyntax() as AccessorDeclarationSyntax) switch
-            {
-                { RawKind: { } kind, ExpressionBody: { } retValue } =>
-                    kind == SetAccessorDeclaration
-                        ? ExpressionStatement(retValue.Expression)
-                        : retValue,
-                { RawKind: { } kind, Body.Statements: [{ } retValue] } =>
-                    retValue,
-                var ret =>
-                    ret?.Body
-            };
+            public bool UseBackingField => !Ignore && !IsImplemented && !IsReadOnly;
 
+            public IPropertySymbol Symbol { get; internal set; }
+            public bool IsSingleStatementGetter { get; private set; }
+            public bool IsSingleStatementSetter { get; private set; }
+
+            private static CSharpSyntaxNode? TryReduceMethod(IMethodSymbol? method) =>
+                (method?.DeclaringSyntaxReferences.LastOrDefault()?.GetSyntax() as AccessorDeclarationSyntax) switch
+                {
+                    { RawKind: { } kind, ExpressionBody: { Expression: { } expr} } =>
+                        expr,
+                    { RawKind: { } kind, Body.Statements: [{ } retValue] } =>
+                        (CSharpSyntaxNode)retValue.ChildNodes().First(),
+                    var ret =>
+                        ret?.Body
+                };
             private static void GetCommandOptions(ImmutableArray<AttributeData> attributeDatas, out bool checkExec, out string asyncOption)
             {
                 checkExec = true;
@@ -541,5 +559,31 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
         }
 
         internal record struct CommandInfo(bool IsAsync, bool CheckExec, string? AsyncOption);
+
+        internal class PropertyDependencyTree : Dictionary<IPropertySymbol, PropertyDependencyTree>
+        {
+            public HashSet<string> NotifyTo = new();
+            public PropertyDependencyTree AddDependencies(bool returnDeep, params IPropertySymbol[] children)
+            {
+                return AddDependencies(returnDeep, (IEnumerable<IPropertySymbol>)children);
+            }
+
+            public PropertyDependencyTree AddDependencies(bool returnDeep, IEnumerable<IPropertySymbol> children)
+            {
+                var currentDependency = this;
+
+                foreach (var segment in children)
+                {
+                    if (!currentDependency.TryGetValue(segment, out var childDependency))
+                    {
+                        childDependency = currentDependency[segment] = new();
+                    }
+                    currentDependency = childDependency;
+                }
+
+                return returnDeep ? currentDependency : this;
+            }
+        }
+
     }
 }

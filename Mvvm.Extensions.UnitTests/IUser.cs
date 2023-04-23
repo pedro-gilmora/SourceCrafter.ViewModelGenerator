@@ -14,25 +14,24 @@ namespace Mvvm.Extensions.UnitTests
     [ObservableModel]
     public interface IUser
     {
-        string ActionName => $"Action is called: {Action.Name}";
+        string ActionName => $"Running action: {Action.Name}";
         IAction Action { get; set; }
-        [Ignore]
-        string? LastName { get; set; }
         string FirstName { get; set; }
+        string? LastName { get; set; }
         string Name => $"{FirstName} {LastName}".Trim();
         bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
         int Age { get; set; }
-        //bool CanDrink { get; set; }
-        //bool IsUnder18
-        //{
-        //    get => Age >= 18;
-        //    set
-        //    {
-        //        Age = value ? 18 : 17;
-        //        if (IsUnder18) CanDrink = true; 
-        //        else CanDrink = false;
-        //    }
-        //}
+        bool CanDrink { get; set; }
+        bool IsUnder18
+        {
+            get => Age >= 18;
+            set
+            {
+                Age = value ? 18 : 17;
+                if (IsUnder18) CanDrink = true;
+                else CanDrink = false;
+            }
+        }
         RelayCommand<Role> SaveCommand { get; }
     }
 

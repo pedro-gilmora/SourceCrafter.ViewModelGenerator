@@ -8,10 +8,16 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Mvvm.Extensions.Generator.ViewModelGeneratorSyntax;
+
 namespace Mvvm.Extensions.Generator
 {
     public static class Helpers
     {
+        public static void Deconstruct<TKey, TValue>(this KeyValuePair<TKey, TValue> source, out TKey key, out TValue val)
+        {
+            (key, val) = (source.Key, source.Value);
+        }
         public static void Deconstruct(
             this IPropertySymbol propSymbol,
             out bool isImplemented,
@@ -39,7 +45,7 @@ namespace Mvvm.Extensions.Generator
         private static bool IgnoreProperty(IPropertySymbol property) =>
             property.GetAttributes().Any(attr => attr.AttributeClass?.Name is "IgnoreAttribute" or "Ignore");
 
-        public static bool ContainsAttribute(this ISymbol property, string namespce, string attrName) =>
+        public static bool HasAttribute(this ISymbol property, string namespce, string attrName) =>
             property.GetAttributes().Any(attr =>
             {
                 return attr.AttributeClass is { Name: { } name, ContainingNamespace: { } cNamespace } &&

@@ -16,51 +16,59 @@ namespace Mvvm.Extensions.UnitTests
         {
             var root = CSharpSyntaxTree.ParseText(@"using Mvvm.Extensions.Generator.Attributes;
 namespace Test {
+    //[ObservableModel]
+    //public interface IUser
+    //{
+    //    string Name { get; set; }
+    //    int Age { get; set; }
+	   // int NameLength => Name.Length;
+    //    IAddress Address { get; }
+    //    string State { set => Address.State = value; }
+    //    bool IsAdult => this is { Age: >= 18 };
+    //    bool IsJohnDoe => this is { Name: ""John Doe"", Age: >= 18 };
+    //    bool LivesInNY => this is { Address: { State: { Length: 2 } } };
+    //    bool IsJohnDoeInNY => this is { Name: ""John Doe"", Age: >= 18, Address.State: ""NY"" } };
+    //}
+    //[ObservableModel]
+    //public interface IAddress
+    //{
+    //    string Street { get; }
+    //    string City { get; }
+    //    string State { get; }
+    //}
 
-    [ObservableModel]
-    public interface IAppManager
-    {
-        IUser? User { get; set; }
-
-        IAuthentication Authentication { get; set; }
-
-        bool IsAuthenticated => Authentication.Token is { };
-    }
-
-    [ObservableModel]
-    public interface IAuthentication
-    {
-        string? Email { get; set; }
-        string? Password { get; set; }
-        string? Token { get; set; }
-        bool IsBusy { get; set; }
-        bool CanLogin => !IsBusy && !string.IsNullOrEmpty(Email?.Trim()) && !string.IsNullOrEmpty(Password?.Trim());
-
-        [CommandOptions(false)]
-        AsyncRelayCommand LoginCommand { get; }
-        [CommandOptions(false)]
-        AsyncRelayCommand LogoutCommand { get; }
-    }
+    //[ObservableModel]
+    //public interface IAuthentication
+    //{
+	   // bool CanLogin => this is {IsBusy: false, Email.Length: > 0, Password.Length: > 0};
+	   // string? Email { get; set; }
+	   // string? Password { get; set; }
+	   // string? Token { get; set; }
+	   // bool IsBusy { get; set; }
+    //}
 
     [ObservableModel]
     public interface IUser
     {
         string ActionName => $""Action is called: {Action.Name}"";
         IAction Action { get; set; }
-        string FirstName { get; set; }
-        [Ignore]
         string? LastName { get; set; }
+        string FirstName { get; set; }
         string Name => $""{FirstName} {LastName}"".Trim();
-        string AgeStatus => $""You're {(Is18 ? """" : ""not "")}old enough"";
-        int Age { get;set }
-        bool Is18 { 
-            get => Age == 18; 
-            set { 
-                if(value)
-                    Age = 18;
+        bool Is18 { get { return Age == 18; } set => Age = value ? 18 : Age; }
+        int Age { get; set; }
+        bool CanDrink { get; set; }
+        bool IsUnder18
+        {
+            get => Age >= 18;
+            set
+            {
+                Age = value ? 18 : 17;
+                if (IsUnder18) CanDrink = true; 
+                else CanDrink = false;
             }
         }
-        AsyncRelayCommand<string?> AddManagerCommand { get; }
+        RelayCommand<Role> SaveCommand { get; }
     }
 
     [ObservableModel]
@@ -74,8 +82,11 @@ namespace Test {
                     MetadataReference.CreateFromFile(typeof(AsyncRelayCommandOptions).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(CommandOptionsAttribute).Assembly.Location)
                 });
+            
             var sm = e.GetSemanticModel(root.SyntaxTree);
-            foreach (var iface in root.DescendantNodes().OfType<InterfaceDeclarationSyntax>()){
+            
+            foreach (var iface in root.DescendantNodes().OfType<InterfaceDeclarationSyntax>())
+            {                
                 var script = new ViewModelGeneratorSyntax(sm.GetDeclaredSymbol(iface)!, sm).ToString();
                 Trace.WriteLine(script); 
             }

@@ -24,6 +24,15 @@ namespace Mvvm.Extensions.Generator
         {
             OnPropertyChanged(handler);
         }
+
+        public void NotifyExternalDependency(IObservable external, string propertyName, string externalPropertyName)
+        {
+            ((IObservable)this).Subscribe((s, a) =>
+            {
+                if (a.PropertyName == propertyName)
+                    external.RaisePropertyChange(new(externalPropertyName));
+            });
+        }
     }
 
 

@@ -20,18 +20,15 @@ public class ViewModelGenerator : IIncrementalGenerator
     {
         lock (Lock)
         {
-            var interfaceDeclarations = context.SyntaxProvider
-                .ForAttributeWithMetadataName(
-                    "Mvvm.Extensions.Generator.Attributes.ObservableModelAttribute",
-                    static (n, _) => n is InterfaceDeclarationSyntax,
-                    static (ctx, _) => new { type = (ITypeSymbol)ctx.TargetSymbol, model = ctx.SemanticModel }
-                );
-
             context.RegisterSourceOutput(
-                interfaceDeclarations,
+                context.SyntaxProvider.ForAttributeWithMetadataName(
+                    $"{ViewModelGeneratorSyntax.NAMESPACE}.{ViewModelGeneratorSyntax.ATTRIBUTE}",
+                    static (n, _) => n is InterfaceDeclarationSyntax,
+                    static (ctx, _) => (Interface: (ITypeSymbol)ctx.TargetSymbol, Model: ctx.SemanticModel)
+                ),
                 static (sourceProducer, interfaceToGenerate) =>
                 {
-                    var result = new ViewModelGeneratorSyntax(interfaceToGenerate.type, interfaceToGenerate.model);
+                    var result = new ViewModelGeneratorSyntax(interfaceToGenerate.Interface, interfaceToGenerate.Model);
                     sourceProducer.AddSource(result.FileName, result.ToString());
                 }
             );
