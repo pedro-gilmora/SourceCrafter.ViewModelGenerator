@@ -1,7 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.Input;
-using Mvvm.Extensions.Generator.Attributes;
+using SourceCrafter.Attributes;
 
-namespace Mvvm.Extensions.UnitTests
+namespace SourceCrafter.ViewModelGenerator.UnitTests
 {
     public enum Role
     {
@@ -24,10 +24,10 @@ namespace Mvvm.Extensions.UnitTests
         bool CanDrink { get; set; }
         bool IsUnder18
         {
-            get => Age >= 18;
+            get => Age < 18;
             set
             {
-                Age = value ? 18 : 17;
+                Age = value && Age >= 18 ? 17 : Age;
                 if (IsUnder18) CanDrink = true;
                 else CanDrink = false;
             }
@@ -38,7 +38,7 @@ namespace Mvvm.Extensions.UnitTests
     [ObservableModel]
     public interface IAction
     {
-        string Name { get; set; }
+        string? Name { get; set; }
     }
 
     public partial class User

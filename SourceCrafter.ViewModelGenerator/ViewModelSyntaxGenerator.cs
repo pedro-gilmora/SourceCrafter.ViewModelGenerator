@@ -1,44 +1,36 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Text;
-using System;
-using System.Collections;
+﻿using System;
+using System.Linq;
+using System.Text;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Collections.Specialized;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Xml.Linq;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-using static System.Net.Mime.MediaTypeNames;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Mvvm.Extensions.Generator
+
+namespace SourceCrafter
 {
-    public sealed class ViewModelGeneratorSyntax
+    public sealed class ViewModelSyntaxGenerator
     {
-        readonly HashSet<string> usings = new(new[] { "Mvvm.Extensions.Generator", "System.ComponentModel", "CommunityToolkit.Mvvm.Input" });
-        readonly HashSet<CSharpSyntaxNode> readProps = new();
+        readonly HashSet<string> usings = new(new[] { "SourceCrafter", "System.ComponentModel", "CommunityToolkit.Mvvm.Input" });
+        //readonly HashSet<CSharpSyntaxNode> readProps = new();
 
         readonly PropertyDependencyTree dependencies = new();
         readonly Dictionary<string, List<(string name, bool isRef)>> _fields = new();
 
         private bool _needsNotifyMethod;
-        private string _namespace;
-        private string _interfaceName;
+        private readonly string _namespace;
+        private readonly string _interfaceName;
         public string ClassName { get; }
-        private readonly PropertySyntaxInfo[] _properties;
+        private readonly ImmutableArray<PropertySyntaxInfo> _properties;
 
         public readonly string FileName;
 
-        private static readonly SymbolEqualityComparer _defaultSymbolComparer = SymbolEqualityComparer.Default;
-        internal const string NAMESPACE = "Mvvm.Extensions.Generator.Attributes";
+        //private static readonly Func<ISymbol?, ISymbol?, bool> AreSymbolsEquals = SymbolEqualityComparer.Default.Equals;
+        internal const string NAMESPACE = "SourceCrafter.Attributes";
         internal const string ATTRIBUTE = "ObservableModelAttribute";
 
-        public ViewModelGeneratorSyntax(ITypeSymbol interfaceSymbol, SemanticModel model)
+        public ViewModelSyntaxGenerator(ITypeSymbol interfaceSymbol, SemanticModel model)
         {
             _namespace = interfaceSymbol.ContainingNamespace.ToDisplayString();
             _interfaceName = interfaceSymbol.Name;
@@ -46,7 +38,7 @@ namespace Mvvm.Extensions.Generator
 
             _properties = GetAllMembers(interfaceSymbol)
                 .Select(p => GatherPropertyInfo(ref _needsNotifyMethod, usings, p, model, dependencies, _fields))
-                .ToArray();
+                .ToImmutableArray();
 
             FileName = $"{_namespace}.{ClassName}.g.cs";
         }
@@ -99,58 +91,38 @@ namespace Mvvm.Extensions.Generator
                 ((propInfo.Type.SpecialType is SpecialType.System_String or SpecialType.System_Object) ||
                     propInfo.Type.TypeKind is TypeKind.Class or TypeKind.TypeParameter || propInfo.Type.IsRecord);
 
-        private static void CollectDependencies(SyntaxNode getter, PropertyDependencyTree dependencies, SemanticModel model, string propName)
+        private static void CollectDependencies(SyntaxNode node, PropertyDependencyTree dependencies, SemanticModel model, string propName)
         {
-            var pos = getter.Span.Start;
+            var subNodes = node.DescendantNodes().OfType<ExpressionSyntax>().ToImmutableArray().GetEnumerator();
+            var pos = node.Span.Start;
 
-            if (getter is IdentifierNameSyntax getterId && 
-                model.GetSymbolInfo(getterId).Symbol is IPropertySymbol pGetter)
+            if (node is not ExpressionSyntax)
+                goto findSubNodes;
+            parse:;
+
+            if (node is InterpolatedStringExpressionSyntax interpolationExpr)
             {
-                dependencies.AddDependencies(true, pGetter).NotifyTo.Add(propName);
-            }
-            else
-
-                foreach (var e in getter.DescendantNodes().OfType<ExpressionSyntax>())
+                foreach (var interpolation in interpolationExpr.Contents.OfType<InterpolationSyntax>())
                 {
-                    if (pos >= e.Span.End || e.Span.Start < pos || e.Parent is InvocationExpressionSyntax)
+                    if (interpolation.Span.Start < pos)
                         continue;
-
-                    if (e is InterpolatedStringExpressionSyntax interpolationExpr)
+                    pos = interpolation.Span.End;
+                    CollectDependencies(interpolation.ChildNodes().First(), dependencies, model, propName);
+                }
+            }
+            else if (node is IsPatternExpressionSyntax isPattern)
+            {
+                pos = node.Span.End;
+                var exprProps = GetIdentifiers(isPattern.Expression, model).ToImmutableArray();
+                var subPatterns = ExtractDependantTree(isPattern, exprProps, model).ToImmutableArray();
+                if (subPatterns.Length > 0)
+                    foreach (var ids in subPatterns)
                     {
-                        foreach (var interpolation in interpolationExpr.Contents.OfType<InterpolationSyntax>())
-                        {
-                            if(interpolation.Span.Start < pos)
-                                continue;
-                            pos = interpolation.Span.End;
-                            CollectDependencies(interpolation.ChildNodes().First(), dependencies, model, propName);
-                        }
-                    }
-                    else if (e is IsPatternExpressionSyntax isPattern)
-                    {
-                        pos = e.Span.End;
-                        foreach (var ids in ExtractDependantTree(isPattern, model))
-                        {
-
-                            var lastWasReactive = true;
-                            var deps = dependencies;
-
-                            foreach (var id in ids)
-                                if (lastWasReactive)
-                                {
-                                    deps = deps.AddDependencies(true, id);
-                                    deps.NotifyTo.Add(propName);
-                                    lastWasReactive = IsNotifiable(id);
-                                }
-                        }
-                    }
-                    else if (e is ConditionalAccessExpressionSyntax or MemberAccessExpressionSyntax)
-                    {
-                        pos = e.Span.End;
 
                         var lastWasReactive = true;
                         var deps = dependencies;
 
-                        foreach (var id in GetIdentifiers(e, model))
+                        foreach (var id in ids)
                             if (lastWasReactive)
                             {
                                 deps = deps.AddDependencies(true, id);
@@ -158,12 +130,46 @@ namespace Mvvm.Extensions.Generator
                                 lastWasReactive = IsNotifiable(id);
                             }
                     }
-                    else if (e is IdentifierNameSyntax id && 
-                        model.GetSymbolInfo(id).Symbol is IPropertySymbol p)
-                    {
-                        dependencies.AddDependencies(true, p).NotifyTo.Add(propName);
-                    }
+                else if (exprProps.Length > 0)
+                {
+                    var lastWasReactive = true;
+                    var deps = dependencies;
+
+                    foreach (var id in exprProps)
+                        if (lastWasReactive)
+                        {
+                            deps = deps.AddDependencies(true, id);
+                            deps.NotifyTo.Add(propName);
+                            lastWasReactive = IsNotifiable(id);
+                        }
                 }
+            }
+            else if (node is ConditionalAccessExpressionSyntax or MemberAccessExpressionSyntax)
+            {
+                pos = node.Span.End;
+
+                var lastWasReactive = true;
+                var deps = dependencies;
+
+                foreach (var id in GetIdentifiers(node, model))
+                    if (lastWasReactive)
+                    {
+                        deps = deps.AddDependencies(true, id);
+                        deps.NotifyTo.Add(propName);
+                        lastWasReactive = IsNotifiable(id);
+                    }
+            }
+            else if (node is IdentifierNameSyntax id &&
+                model.GetSymbolInfo(id).Symbol is IPropertySymbol p)
+            {
+                dependencies.AddDependencies(true, p).NotifyTo.Add(propName);
+            }
+
+        findSubNodes: while (subNodes.MoveNext())
+                if (pos >= (node = subNodes.Current).Span.End || node.Span.Start < pos || node.Parent is InvocationExpressionSyntax)
+                    continue;
+                else
+                    goto parse;
         }
 
         private static bool IsNotifiable(IPropertySymbol id)
@@ -171,15 +177,15 @@ namespace Mvvm.Extensions.Generator
             return id.Type.HasAttribute(NAMESPACE, ATTRIBUTE);
         }
 
-        static IEnumerable<IEnumerable<IPropertySymbol>> ExtractDependantTree(IsPatternExpressionSyntax isPattern, SemanticModel model)
+        static IEnumerable<IEnumerable<IPropertySymbol>> ExtractDependantTree(IsPatternExpressionSyntax isPattern, IEnumerable<IPropertySymbol> exprIds, SemanticModel model)
         {
             return isPattern.Pattern
                 .DescendantNodes()
                 .OfType<SubpatternSyntax>()
                 .Where(el => el.Pattern is not RecursivePatternSyntax)
                 .Select(subPattern =>
-                    GetIdentifiers(isPattern.Expression, model)
-                        .Concat(EnumerateParentPatterns(subPattern.ExpressionColon!, isPattern.Pattern, model)));
+                    exprIds
+                    .Concat(EnumerateParentPatterns(subPattern.ExpressionColon!, isPattern.Pattern, model)));
         }
 
         static IEnumerable<IPropertySymbol> EnumerateParentPatterns(BaseExpressionColonSyntax exprCol, PatternSyntax topPattern, SemanticModel model)
@@ -204,19 +210,38 @@ namespace Mvvm.Extensions.Generator
         {
             RegisterNamespace(usings, type.ContainingNamespace.ToString());
 
-            return type switch
+            string typeName = type switch
             {
-                INamedTypeSymbol { Name: "Nullable", TypeArguments: [{ } underlyingType] }
-                    => $"{GetType(usings, underlyingType)}?",
+                IArrayTypeSymbol { ElementType: { } arrayType }
+                => GetType(usings, arrayType) + "[]",
 
                 INamedTypeSymbol { IsTupleType: true, TupleElements: var elements }
-                    => $"({elements.Join(f => $"{GetType(usings, f.Type)}{(f.IsExplicitlyNamedTupleElement ? $" {f.Name}" : "")}", ", ")})",
+                    => $"({elements.Join(f => f.IsExplicitlyNamedTupleElement ? GetType(usings, f.Type) + " " + f.Name : GetType(usings, f.Type), ", ")})",
+
+                INamedTypeSymbol { Name: "Nullable", TypeArguments: [{ } underlyingType] } =>
+                        GetTypeName(usings, underlyingType, true),
 
                 INamedTypeSymbol { Name: var name, TypeArguments: { Length: > 0 } generics }
-                    => $"{name}<{generics.Join(g => GetType(usings, g), ", ")}>",
+                        => $"{name}<{generics.Join(g => GetType(usings, g), ", ")}>",
                 _
-                    => IsPrimitive((INamedTypeSymbol)type) ? type.ToDisplayString() : type.Name
+                    => GetTypeName(usings, type)
             };
+
+            return typeName;
+        }
+
+        private static string GetTypeName(HashSet<string> usings, ITypeSymbol type, bool addNullability = false)
+        {
+            bool isPrimitive = IsPrimitive((INamedTypeSymbol)type);
+            var typeName = isPrimitive ? type.ToDisplayString() : type.Name;
+
+            if (!isPrimitive && type.ContainingNamespace!=null)
+                RegisterNamespace(usings, type.ContainingNamespace.ToString());
+
+            if (typeName[^1] != '?' && (addNullability || type is { NullableAnnotation: NullableAnnotation.Annotated }))
+                typeName += '?';
+
+            return typeName;
         }
 
         private static void RegisterNamespace(HashSet<string> usings, params string[] namespaces)
@@ -228,8 +253,7 @@ namespace Mvvm.Extensions.Generator
 
         private static bool IsPrimitive(INamedTypeSymbol type)
         {
-            return type?.SpecialType switch
-            {
+            return type?.SpecialType is
                 SpecialType.System_Boolean or
                 SpecialType.System_SByte or
                 SpecialType.System_Int16 or
@@ -243,9 +267,7 @@ namespace Mvvm.Extensions.Generator
                 SpecialType.System_Single or
                 SpecialType.System_Double or
                 SpecialType.System_Char or
-                SpecialType.System_String => true,
-                _ => false
-            };
+                SpecialType.System_String;
         }
 
         private static string GetFieldName(string propName) => $"_{propName.ToCamelCase()}";
@@ -370,12 +392,12 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
 
                         if (prop.Ignore)
                         {
-                            if(prop.IsSingleStatementSetter)
+                            if (prop.IsSingleStatementSetter)
                                 code.Append(" =>");
 
                             code.Append($" {prop.Setter}".TrimEnd());
 
-                            if(prop.IsSingleStatementSetter || prop.Getter == null)
+                            if (prop.IsSingleStatementSetter || prop.Getter == null)
                                 code.Append(";");
 
                             if (!prop.IsImplemented)
@@ -412,7 +434,7 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
 
                     }
 
-                code.Append(@"
+                    code.Append(@"
     }");
 
                 }
@@ -423,11 +445,11 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
         {
             string
                 baseMethodName = $"Execute{propName[0..^7]}",
-                methodName = $"{baseMethodName}{(info.IsAsync ? "Async" : "")}",
+                methodName = info.IsAsync ? $"{baseMethodName}Async" : baseMethodName,
                 parameterSyntax = typeName.IndexOf("<", StringComparison.Ordinal) is { } a and > 0 &&
-                                  typeName[a..(typeName.LastIndexOf('>') + 1)] is ['<', .. { Length: > 0 } genericArgumentName, '>'] ?
-                    $"{genericArgumentName} parameter"
-                    : "";
+                                  typeName[a..(typeName.LastIndexOf('>') + 1)] is ['<', .. { Length: > 0 } genericArgumentName, '>']
+                                  ? $"{genericArgumentName} parameter"
+                                  : "";
 
             builder.AppendFormat(@"
     public {0} {1} => {2} ??= new {0}({3}", typeName, propName, fieldName, methodName);
@@ -533,7 +555,7 @@ public partial class {1} : ViewModelBase, {2} {{", _namespace, ClassName, _inter
             private static CSharpSyntaxNode? TryReduceMethod(IMethodSymbol? method) =>
                 (method?.DeclaringSyntaxReferences.LastOrDefault()?.GetSyntax() as AccessorDeclarationSyntax) switch
                 {
-                    { RawKind: { } kind, ExpressionBody: { Expression: { } expr} } =>
+                    { RawKind: { } kind, ExpressionBody: { Expression: { } expr } } =>
                         expr,
                     { RawKind: { } kind, Body.Statements: [{ } retValue] } =>
                         (CSharpSyntaxNode)retValue.ChildNodes().First(),

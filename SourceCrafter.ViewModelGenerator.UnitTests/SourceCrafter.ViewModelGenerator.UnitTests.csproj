@@ -24,7 +24,7 @@
 	</ItemGroup>
 	
   <ItemGroup>
-    <ProjectReference Include="..\Mvvm.Extensions.Generator\Mvvm.Extensions.Generator.csproj" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\SourceCrafter.ViewModelGenerator\SourceCrafter.ViewModelGenerator.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 	
   <ItemGroup>

@@ -1,15 +1,8 @@
 ﻿#nullable enable
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Collections;
-using System.Linq;
-using System.Collections.Generic;
-using Microsoft.CodeAnalysis.CSharp;
-using System.Collections.Immutable;
-using System.Text;
 
-namespace Mvvm.Extensions.Generator;
+namespace SourceCrafter;
 
 [Generator]
 public class ViewModelGenerator : IIncrementalGenerator
@@ -22,13 +15,13 @@ public class ViewModelGenerator : IIncrementalGenerator
         {
             context.RegisterSourceOutput(
                 context.SyntaxProvider.ForAttributeWithMetadataName(
-                    $"{ViewModelGeneratorSyntax.NAMESPACE}.{ViewModelGeneratorSyntax.ATTRIBUTE}",
+                    $"{ViewModelSyntaxGenerator.NAMESPACE}.{ViewModelSyntaxGenerator.ATTRIBUTE}",
                     static (n, _) => n is InterfaceDeclarationSyntax,
                     static (ctx, _) => (Interface: (ITypeSymbol)ctx.TargetSymbol, Model: ctx.SemanticModel)
                 ),
                 static (sourceProducer, interfaceToGenerate) =>
                 {
-                    var result = new ViewModelGeneratorSyntax(interfaceToGenerate.Interface, interfaceToGenerate.Model);
+                    var result = new ViewModelSyntaxGenerator(interfaceToGenerate.Interface, interfaceToGenerate.Model);
                     sourceProducer.AddSource(result.FileName, result.ToString());
                 }
             );

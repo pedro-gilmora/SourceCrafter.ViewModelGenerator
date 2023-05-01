@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Linq;
 
-namespace Mvvm.Extensions.Generator
+namespace SourceCrafter
 {
     public abstract class ViewModelBase: IObservable
     {

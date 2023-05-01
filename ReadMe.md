@@ -1,4 +1,4 @@
-﻿# ✨ **Mvvm.Extensions**: Generates simple partial classes for observable view models 
+﻿# ✨ **SourceCrafter.ViewModelGenerator**: Simple partial classes for observable view models 
 
 ### Given the following spec interface
 ```csharp
