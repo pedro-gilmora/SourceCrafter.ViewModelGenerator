@@ -1,7 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using System;
 
-namespace SourceCrafter.Attributes;
+namespace SourceCrafter.Mvvm.Attributes;
 
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
 public class CommandOptionsAttribute : Attribute

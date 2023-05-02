@@ -1,7 +1,7 @@
 ﻿using System;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace SourceCrafter
+namespace SourceCrafter.Mvvm
 {
     internal interface IValidatable 
     { 

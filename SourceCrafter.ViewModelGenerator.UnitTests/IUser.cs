@@ -1,5 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.Input;
-using SourceCrafter.Attributes;
+using SourceCrafter.Mvvm.Attributes;
 
 namespace SourceCrafter.ViewModelGenerator.UnitTests
 {

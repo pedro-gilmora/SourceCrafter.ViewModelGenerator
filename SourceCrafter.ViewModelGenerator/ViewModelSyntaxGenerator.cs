@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.Reflection;
+using System;
 using System.Linq;
 using System.Text;
 using System.Collections.Generic;
@@ -6,13 +7,15 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Runtime.CompilerServices;
 
+[assembly: InternalsVisibleTo("SourceCrafter.ViewModelGenerator.UnitTests")]
 
 namespace SourceCrafter
 {
-    public sealed class ViewModelSyntaxGenerator
+    internal sealed class ViewModelSyntaxGenerator
     {
-        readonly HashSet<string> usings = new(new[] { "SourceCrafter", "System.ComponentModel", "CommunityToolkit.Mvvm.Input" });
+        readonly HashSet<string> usings = new(new[] { "SourceCrafter.Mvvm", "System.ComponentModel", "CommunityToolkit.Mvvm.Input" });
         //readonly HashSet<CSharpSyntaxNode> readProps = new();
 
         readonly PropertyDependencyTree dependencies = new();
@@ -27,7 +30,7 @@ namespace SourceCrafter
         public readonly string FileName;
 
         //private static readonly Func<ISymbol?, ISymbol?, bool> AreSymbolsEquals = SymbolEqualityComparer.Default.Equals;
-        internal const string NAMESPACE = "SourceCrafter.Attributes";
+        internal const string NAMESPACE = "SourceCrafter.Mvvm.Attributes";
         internal const string ATTRIBUTE = "ObservableModelAttribute";
 
         public ViewModelSyntaxGenerator(ITypeSymbol interfaceSymbol, SemanticModel model)

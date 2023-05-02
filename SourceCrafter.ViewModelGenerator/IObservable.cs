@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel;
 
-namespace SourceCrafter
+namespace SourceCrafter.Mvvm
 {
     public interface IObservable : INotifyPropertyChanged
     {

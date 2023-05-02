@@ -21,9 +21,9 @@
 			))
 		</PackageVersion>
 		<Company>AsereHighDev</Company>
-		<Description>Generator for MAUI View Models</Description>
+		<Description>Generator for MVVM View Models</Description>
 		<PackageReadmeFile>ReadMe.md</PackageReadmeFile>
-		<PackageTags>REST; Source Generator; C#; </PackageTags>
+		<PackageTags>MVVM; Source Generator; C#; </PackageTags>
 		<Nullable>enable</Nullable>
 		<PackageIcon>viewmodelvenerator.png</PackageIcon>
 		<RepositoryUrl>https://github.com/pedro-gilmora/SourceCrafter.ViewModelGenerator</RepositoryUrl>

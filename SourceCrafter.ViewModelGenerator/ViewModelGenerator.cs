@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace SourceCrafter;
 
 [Generator]
-public class ViewModelGenerator : IIncrementalGenerator
+internal class ViewModelGenerator : IIncrementalGenerator
 {
     private static readonly object Lock = new();
 
