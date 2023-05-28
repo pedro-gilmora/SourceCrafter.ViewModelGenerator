@@ -39,6 +39,10 @@
 		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
 	</ItemGroup>
 
+	<Target Name="PullRepo" Condition="!Exists($(MyFolder))">
+		<Exec Command="git clone https://github.com/pedro-gilmora/SourceCrafter.Extensions.git ../../SourceCrafter.Extensions -b dev" />
+	</Target>
+
 	<ItemGroup>
 		<None Include="..\ReadMe.md">
 			<Pack>True</Pack>
@@ -66,5 +70,11 @@
 	<ItemGroup Condition=" '$(Configuration)' == 'Release' ">
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
+
+	<Import Project="..\..\SourceCrafter.Extensions\SourceCrafter.Extensions.Collections\SourceCrafter.Extensions.Collections.projitems" Label="Shared" />
+
+	<Import Project="..\..\SourceCrafter.Extensions\SourceCrafter.Extensions.Roslyn\SourceCrafter.Extensions.Roslyn.projitems" Label="Shared" />
+
+	<Import Project="..\..\SourceCrafter.Extensions\SourceCrafter.Extensions.String\SourceCrafter.Extensions.String.projitems" Label="Shared" />
 
 </Project>
