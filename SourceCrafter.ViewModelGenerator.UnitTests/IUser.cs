@@ -1,7 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using SourceCrafter.Mvvm.Attributes;
 
-namespace SourceCrafter.ViewModelGenerator.UnitTests
+namespace SourceCrafter.ViewModel.UnitTests
 {
     public enum Role
     {

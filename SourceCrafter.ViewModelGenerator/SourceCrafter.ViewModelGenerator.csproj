@@ -55,7 +55,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="JetBrains.Annotations" Version="10.3.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.4.0" PrivateAssets="all" GeneratePathProperty="true" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3" PrivateAssets="all" GeneratePathProperty="true" />
 	</ItemGroup>
@@ -64,7 +63,6 @@
 		<PackageReference Include="IndexRange" Version="1.0.2" PrivateAssets="all" GeneratePathProperty="true" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" GeneratePathProperty="true" />
 		<PackageReference Include="System.Memory" Version="4.5.5" PrivateAssets="all" GeneratePathProperty="true" />
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.0.0" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(Configuration)' == 'Release' ">

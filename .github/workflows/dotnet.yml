@@ -11,6 +11,14 @@ jobs:
 
     steps:      
     - uses: actions/checkout@v3
+      name: Get source code
+
+    - uses: actions/checkout@v3
+      name: Get source code
+      with:        
+        repository: pedro-gilmora/SourceCrafter.Extensions
+        path: ../SourceCrafter.Extensions
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
