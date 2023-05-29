@@ -62,10 +62,14 @@
 	<PropertyGroup>
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
 	</PropertyGroup>
+		
+	<ItemGroup>		
+		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
 
 	<Target Name="GetDependencyTargetPaths">
 		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGSourceCrafter_Extensions)\lib\netstandard2.0\SourceCrafter.Extensions.dll" IncludeRuntimeDependency="false" />
+			<TargetPathWithTargetPlatformMoniker Include="$(PKGSourceCrafter_Extensions)\lib\netstandard2.0\SourceCrafter.Extensions.dll" IncludeRuntimeDependency="false" />		
 		</ItemGroup>
 	</Target>
 	
