@@ -4,7 +4,7 @@
 		<TargetFramework>net7.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Configurations>Debug;Release;Test</Configurations>
+		<Configurations>Debug;Release;Test;Pack</Configurations>
 	</PropertyGroup>
 	
 	<ItemGroup>
@@ -25,13 +25,6 @@
 	
   <ItemGroup>
     <ProjectReference Include="..\SourceCrafter.ViewModelGenerator\SourceCrafter.ViewModelGenerator.csproj" OutputItemType="Analyzer" />
-  </ItemGroup>
-	
-  <ItemGroup>
-    <Compile Remove="Authentication.cs" />
-    <Compile Remove="IAuthentication.cs" />
-    <Compile Remove="IManager.cs" />
-    <Compile Remove="IView.cs" />
   </ItemGroup>
 
 </Project>

@@ -519,7 +519,7 @@ public partial class {ClassName} : global::SourceCrafter.Mvvm.ViewModelBase, {_i
         private static void GetCommandOptions(ImmutableArray<AttributeData> attributeDatas, out bool checkExec, out string asyncOption)
         {
             checkExec = true;
-            asyncOption = "global::SourceCrafter.Mvvm.AsyncRelayCommandOptions.None";
+            asyncOption = "global::CommunityToolkit.Mvvm.Input.AsyncRelayCommandOptions.None";
             if (attributeDatas.FirstOrDefault("CommandOptions".IsAttributeName)?.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax
                 {
                     ArgumentList.Arguments: [{ Expression: LiteralExpressionSyntax { Token.Value: bool check } }, ..] args

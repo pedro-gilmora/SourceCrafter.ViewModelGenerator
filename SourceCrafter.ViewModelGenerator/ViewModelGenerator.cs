@@ -21,7 +21,7 @@ namespace SourceCrafter.Mvvm.Attributes;
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
 public class CommandOptionsAttribute : Attribute
 {
-    public CommandOptionsAttribute(bool canExecute, AsyncRelayCommandOptions asyncOption = AsyncRelayCommandOptions.None) { }
+    public CommandOptionsAttribute(bool canExecute, global::CommunityToolkit.Mvvm.Input.AsyncRelayCommandOptions asyncOption = global::CommunityToolkit.Mvvm.Input.AsyncRelayCommandOptions.None) { }
 }"));
         context.RegisterSourceOutput(
             context.SyntaxProvider.ForAttributeWithMetadataName(

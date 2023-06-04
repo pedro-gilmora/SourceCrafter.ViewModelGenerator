@@ -1,4 +1,4 @@
-﻿using Mvvm.Extensions.Generator.Attributes;
+﻿using SourceCrafter.Mvvm.Attributes;
 
 namespace FacilCuba.ViewModels
 {

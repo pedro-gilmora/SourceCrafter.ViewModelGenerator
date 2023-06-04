@@ -1,7 +1,7 @@
 ﻿//using CommunityToolkit.Maui.Views;
 using CommunityToolkit.Mvvm.DependencyInjection;
-using Mvvm.Extensions.Generator.Attributes;
-using Mvvm.Extensions.UnitTests;
+using SourceCrafter.Mvvm.Attributes;
+using SourceCrafter.ViewModel.UnitTests;
 using System.ComponentModel;
 
 namespace FacilCuba.ViewModels
@@ -11,7 +11,7 @@ namespace FacilCuba.ViewModels
     {
         IUser? User { get; set; }
 
-        Authentication Authentication { get; set; }
+        IAuthentication Authentication { get; set; }
 
         bool IsAuthenticated => Authentication is { Token: { } };
     }

@@ -1,11 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.Input;
-//using FacilCuba.Infrastructure.QvaPay;
-//using FacilCuba.Views;
-using HttPie.Generator;
-using Microsoft.Extensions.DependencyInjection;
-using Mvvm.Extensions.Generator.Attributes;
-using System.ComponentModel;
-using System.Text.Json;
+using SourceCrafter.Mvvm.Attributes;
 
 namespace FacilCuba.ViewModels
 {
