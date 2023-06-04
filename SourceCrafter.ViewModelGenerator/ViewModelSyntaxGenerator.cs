@@ -8,7 +8,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Runtime.CompilerServices;
-using System.Security.Principal;
 
 [assembly: InternalsVisibleTo("SourceCrafter.ViewModelGenerator.UnitTests")]
 
@@ -20,13 +19,10 @@ internal sealed class ViewModelSyntaxGenerator
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters | SymbolDisplayGenericsOptions.IncludeVariance,
-        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
-
-    readonly HashSet<string> usings = new(new[] { "SourceCrafter.Mvvm", "System.ComponentModel", "CommunityToolkit.Mvvm.Input" });
-    //readonly HashSet<CSharpSyntaxNode> readProps = new();
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
     readonly PropertyDependencyTree dependencies = new();
-    readonly Dictionary<string, List<(string name, bool isRef)>> _fields = new();
+    readonly Dictionary<string, List<(string name, bool isNullable, bool allowsNull)>> _fields = new();
 
     private bool _needsNotifyMethod;
     private readonly string _namespace;
@@ -47,7 +43,7 @@ internal sealed class ViewModelSyntaxGenerator
         ClassName = _interfaceName[1..];
 
         _properties = GetAllMembers(interfaceSymbol)
-            .Select(p => GatherPropertyInfo(ref _needsNotifyMethod, usings, p, model, dependencies, _fields))
+            .Select(p => GatherPropertyInfo(ref _needsNotifyMethod, p, model, dependencies))
             .ToImmutableArray();
 
         FileName = $"{interfaceSymbol.ContainingNamespace.ToString().Replace("<global namespace>","")}.{ClassName}.g.cs";
@@ -61,13 +57,11 @@ internal sealed class ViewModelSyntaxGenerator
             .OfType<IPropertySymbol>();
     }
 
-    private static PropertySyntaxInfo GatherPropertyInfo(
+    private PropertySyntaxInfo GatherPropertyInfo(
         ref bool needsNotifyMethod,
-        HashSet<string> usings,
         IPropertySymbol propInfo,
         SemanticModel model,
-        PropertyDependencyTree propReferences,
-        Dictionary<string, List<(string, bool)>> fields
+        PropertyDependencyTree propReferences
     )
     {
         string
@@ -85,7 +79,7 @@ internal sealed class ViewModelSyntaxGenerator
         if (info is { IsImplemented: false, Ignore: false })
         {
             if (!info.IsReadOnly || info.IsCommand)
-                fields.AddNested(typeName, (fieldName, ShouldAddInitializer(propInfo)));
+                _fields.AddNested(typeName, (fieldName, propInfo.Type.IsNullable(), propInfo.Type.AllowsNull()));
 
             if (!info.IsCommand)
                 needsNotifyMethod = true;
@@ -93,9 +87,6 @@ internal sealed class ViewModelSyntaxGenerator
 
         return info;
     }
-
-    private static bool ShouldAddInitializer(IPropertySymbol propInfo) =>
-        propInfo.Type.AllowsNull();
 
     private static void CollectDependencies(SyntaxNode node, PropertyDependencyTree dependencies, SemanticModel model, string propName)
     {
@@ -212,25 +203,6 @@ internal sealed class ViewModelSyntaxGenerator
                 yield return prop;
     }
 
-    private static bool IsPrimitive(INamedTypeSymbol type)
-    {
-        return type?.SpecialType is
-            SpecialType.System_Boolean or
-            SpecialType.System_SByte or
-            SpecialType.System_Int16 or
-            SpecialType.System_Int32 or
-            SpecialType.System_Int64 or
-            SpecialType.System_Byte or
-            SpecialType.System_UInt16 or
-            SpecialType.System_UInt32 or
-            SpecialType.System_UInt64 or
-            SpecialType.System_Decimal or
-            SpecialType.System_Single or
-            SpecialType.System_Double or
-            SpecialType.System_Char or
-            SpecialType.System_String;
-    }
-
     private static string GetFieldName(string propName) => $"_{propName.ToCamel()}";
 
     public override string ToString()
@@ -287,8 +259,13 @@ public partial class {ClassName} : global::SourceCrafter.Mvvm.ViewModelBase, {_i
                 code.AppendFormat(@"
         {0}", fieldInfo.name);
 
-                if (fieldInfo.isRef)
-                    code.Append(" = default!");
+                if (fieldInfo.allowsNull)
+                {
+                    code.Append(" = default");
+
+                    if (!fieldInfo.isNullable)
+                        code.Append("!");
+                }
 
                 return code;
             });
