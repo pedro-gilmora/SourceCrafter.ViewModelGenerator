@@ -114,6 +114,7 @@ namespace Test {
     public interface IAction
     {
         string Name { get; set; }
+        bool ClearBrowserData { get; } 
     }
 }").GetRoot();
             var e = CSharpCompilation.Create("Test", 

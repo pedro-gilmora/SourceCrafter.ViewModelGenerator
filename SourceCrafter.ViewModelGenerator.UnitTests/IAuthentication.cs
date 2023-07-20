@@ -10,6 +10,7 @@ namespace FacilCuba.ViewModels
         string? Password { get; set; }
         string? Token { get; set; }
         bool IsBusy { get; set; }
+        bool ClearBrowserData { get; }
         bool CanLogin => !IsBusy && !string.IsNullOrEmpty(Email?.Trim()) && !string.IsNullOrEmpty(Password?.Trim());
 
         [CommandOptions(false)]

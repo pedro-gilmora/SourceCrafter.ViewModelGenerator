@@ -292,7 +292,7 @@ public partial class {ClassName} : global::SourceCrafter.Mvvm.ViewModelBase, {_i
                 code.AppendFormat(@"
     public {0} {1}", prop.Type, prop.Name);
 
-                if (prop.IsReadOnly && (prop.IsSingleStatementGetter))
+                if (prop.IsReadOnly && prop.IsSingleStatementGetter)
                 {
                     code.Append($" => {prop.Getter};");
                     continue;
@@ -315,7 +315,11 @@ public partial class {ClassName} : global::SourceCrafter.Mvvm.ViewModelBase, {_i
 
 
                     if (prop.IsReadOnly)
+                    {
+                        if(!prop.IsSingleStatementGetter)
+                            code.Append(" }");
                         continue;
+                    }
                 }
 
                 if (!prop.IsReadOnly)
