@@ -2,7 +2,7 @@
 
 namespace FacilCuba.ViewModels
 {
-    [ObservableModel]
+    [Reactive]
     public interface IView
     {
         string Icon { get; set; }

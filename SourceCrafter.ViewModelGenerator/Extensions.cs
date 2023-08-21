@@ -1,7 +1,9 @@
 ﻿#nullable enable
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -42,11 +44,31 @@ public static class Helpers
             .GetAttributes()
             .Any(attr => attr.AttributeClass?.Name is "IgnoreAttribute" or "Ignore");
 
+    public static void Walk(this IEnumerable enumrbl)
+    {
+        var enumerator = enumrbl.GetEnumerator();
+        while (enumerator.MoveNext());
+    }
+    public static bool Walk(this IEnumerable enumrbl, bool ret)
+    {
+        var enumerator = enumrbl.GetEnumerator();
+        while (enumerator.MoveNext());
+        return ret;
+    }
+
+    public static bool TryPeek<T>(this Stack<T> values, out T _out) {
+        _out = default!;
+        if(values.Count > 0)
+        {
+            _out = values.Peek();
+            return true;
+        }
+        return false;
+    }
+
     public static bool HasAttribute(this ISymbol property, string namespce, string attrName)
-        => property.GetAttributes().Any(attr =>
-            attr.AttributeClass is { Name: { } name, ContainingNamespace: { } cNamespace } &&
-                            cNamespace.ToString() == namespce &&
-                            name.StartsWith(attrName));
+        => property.GetAttributes().Any(attr => true == 
+            attr.AttributeClass?.ToString().StartsWith(string.Format("{0}.{1}", namespce, attrName)));
     public static bool ContainsAttribute(this IPropertySymbol property, string attrName) =>
         property.GetAttributes().Any(attr => attr.AttributeClass?.Name?.StartsWith(attrName) ?? false);
 

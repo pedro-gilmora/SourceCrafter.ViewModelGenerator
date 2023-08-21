@@ -25,16 +25,20 @@ public class CommandOptionsAttribute : Attribute
 }"));
         context.RegisterSourceOutput(
             context.SyntaxProvider.ForAttributeWithMetadataName(
-                $"{ViewModelSyntaxGenerator.NAMESPACE}.{ViewModelSyntaxGenerator.ATTRIBUTE}",
+                $"{ViewModelSyntaxGenerator.NAMESPACE}.{ViewModelSyntaxGenerator.ATTRIBUTE}Attribute",
                 static (n, _) => n is InterfaceDeclarationSyntax,
                 static (ctx, _) => (Interface: (ITypeSymbol)ctx.TargetSymbol, Model: ctx.SemanticModel)
             ),
             static (sourceProducer, interfaceToGenerate) =>
             {
-                lock (Lock)
+                try
                 {
                     var result = new ViewModelSyntaxGenerator(interfaceToGenerate.Interface, interfaceToGenerate.Model);
                     sourceProducer.AddSource(result.FileName, result.ToString());
+                }
+                catch (System.Exception e)
+                {
+                    sourceProducer.AddSource(interfaceToGenerate.Interface.Name + ".error.cs", "/*" + e.ToString() + "*/");
                 }
             }
         );

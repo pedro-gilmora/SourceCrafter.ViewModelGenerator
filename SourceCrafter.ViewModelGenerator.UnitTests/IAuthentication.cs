@@ -3,7 +3,7 @@ using SourceCrafter.Mvvm.Attributes;
 
 namespace FacilCuba.ViewModels
 {
-    [ObservableModel]
+    [Reactive]
     public interface IAuthentication
     {
         string? Email { get; set; }

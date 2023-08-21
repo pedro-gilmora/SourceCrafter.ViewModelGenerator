@@ -5,4 +5,4 @@ using System.Net.Mime;
 namespace SourceCrafter.Mvvm.Attributes;
 
 [AttributeUsage(AttributeTargets.Interface)]
-public sealed class ObservableModelAttribute : Attribute {}
+public sealed class ReactiveAttribute : Attribute {}

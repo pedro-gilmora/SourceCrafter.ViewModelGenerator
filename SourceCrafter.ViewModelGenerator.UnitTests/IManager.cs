@@ -6,14 +6,14 @@ using System.ComponentModel;
 
 namespace FacilCuba.ViewModels
 {
-    [ObservableModel]
+    [Reactive]
     public interface IAppManager
     {
         IUser? User { get; set; }
 
         IAuthentication Authentication { get; set; }
 
-        bool IsAuthenticated => Authentication is { Token: { } };
+        bool IsAuthenticated => Authentication is { Token.Length: > 0, Email: { Length: 0} };
     }
 
     public partial class AppManager

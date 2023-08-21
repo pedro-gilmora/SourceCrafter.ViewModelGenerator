@@ -11,7 +11,7 @@ namespace SourceCrafter.ViewModel.UnitTests
         User
     }
 
-    [ObservableModel]
+    [Reactive]
     public interface IUser
     {
         string ActionName => $"Running action: {Action.Name}";
@@ -27,15 +27,18 @@ namespace SourceCrafter.ViewModel.UnitTests
             get => Age < 18;
             set
             {
-                Age = value && Age >= 18 ? 17 : Age;
-                if (IsUnder18) CanDrink = true;
-                else CanDrink = false;
+                Age = (value && Age >= 18) ? 17 : Age;
+
+                if (IsUnder18) 
+                    CanDrink = false; 
+                else 
+                    CanDrink = true;
             }
         }
         RelayCommand<Role> SaveCommand { get; }
     }
 
-    [ObservableModel]
+    //[ObservableModel]
     public interface IAction
     {
         string? Name { get; set; }
@@ -44,9 +47,6 @@ namespace SourceCrafter.ViewModel.UnitTests
     public partial class User
     {
         private partial bool CanExecuteSave(Role parameter) => true;
-
-        partial void ExecuteSave(Role parameter)
-        {
-        }
+        partial void ExecuteSave(Role parameter) { }
     }
 }
