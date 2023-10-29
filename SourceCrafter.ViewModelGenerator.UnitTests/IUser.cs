@@ -35,7 +35,9 @@ namespace SourceCrafter.ViewModel.UnitTests
                     CanDrink = true;
             }
         }
-        RelayCommand<Role> SaveCommand { get; }
+
+        [Command]
+        Task AddAsync(Role role);
     }
 
     //[ObservableModel]
@@ -46,7 +48,6 @@ namespace SourceCrafter.ViewModel.UnitTests
 
     public partial class User
     {
-        private partial bool CanExecuteSave(Role parameter) => true;
-        partial void ExecuteSave(Role parameter) { }
+        public Task AddAsync(Role role) => Task.CompletedTask;
     }
 }

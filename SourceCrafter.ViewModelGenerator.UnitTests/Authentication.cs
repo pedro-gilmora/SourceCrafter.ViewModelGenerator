@@ -29,8 +29,8 @@ namespace FacilCuba.ViewModels
         //    }
         //}
 
-        private partial Task ExecuteLoginAsync() => throw new NotImplementedException();
+        public Task LoginAsync() => throw new NotImplementedException();
 
-        private partial Task ExecuteLogoutAsync() => throw new NotImplementedException();
+        public Task LogoutAsync() => throw new NotImplementedException();
     }
 }

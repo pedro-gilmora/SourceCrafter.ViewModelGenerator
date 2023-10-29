@@ -19,17 +19,20 @@ jobs:
         dotnet-version: 7.0.x
 
     - name: Restore dependencies
-      run: dotnet restore
-
-    - name: Test
-      run: dotnet test SourceCrafter.ViewModelGenerator.UnitTests/SourceCrafter.ViewModelGenerator.UnitTests.csproj --verbosity normal -c Release
+      run: |
+        echo '${{ github.workspace }}'
+        dotnet restore /p:SolutionDir=${{ github.workspace }}
 
     - name: Pack
       if: github.ref_name == 'dev'
       run: |
         without_comma=$(echo "${{ github.event.head_commit.message }}" | sed 's/,/\\u002C/g')
-        dotnet pack SourceCrafter.ViewModelGenerator/SourceCrafter.ViewModelGenerator.csproj --verbosity normal -c Pack /p:PackageReleaseNotes="$without_comma"
+        dotnet pack SourceCrafter.ViewModelGenerator/SourceCrafter.ViewModelGenerator.csproj --verbosity normal -c Pack /p:PackageReleaseNotes="$without_comma" /p:SolutionDir=${{ github.workspace }}
     
+
+    - name: Test
+      run: dotnet test SourceCrafter.ViewModelGenerator.UnitTests/SourceCrafter.ViewModelGenerator.UnitTests.csproj --verbosity normal -c Pack /p:SolutionDir=${{ github.workspace }}
+
     - name: Publish to Nuget
       if: github.ref_name == 'dev'
       run: |

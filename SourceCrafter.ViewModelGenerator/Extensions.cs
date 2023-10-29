@@ -68,7 +68,9 @@ public static class Helpers
 
     public static bool HasAttribute(this ISymbol property, string namespce, string attrName)
         => property.GetAttributes().Any(attr => true == 
-            attr.AttributeClass?.ToString().StartsWith(string.Format("{0}.{1}", namespce, attrName)));
+            attr.AttributeClass?
+                .ToDisplayString(ViewModelSyntaxGenerator.GlobalizedNamespace)
+                .StartsWith(string.Format("global::{0}.{1}", namespce, attrName)));
     public static bool ContainsAttribute(this IPropertySymbol property, string attrName) =>
         property.GetAttributes().Any(attr => attr.AttributeClass?.Name?.StartsWith(attrName) ?? false);
 

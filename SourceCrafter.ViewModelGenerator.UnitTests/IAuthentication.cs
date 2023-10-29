@@ -13,9 +13,9 @@ namespace FacilCuba.ViewModels
         bool ClearBrowserData { get; }
         bool CanLogin => !IsBusy && !string.IsNullOrEmpty(Email?.Trim()) && !string.IsNullOrEmpty(Password?.Trim());
 
-        [CommandOptions(false)]
-        AsyncRelayCommand LoginCommand { get; }
-        [CommandOptions(false)]
-        AsyncRelayCommand LogoutCommand { get; }
+        [Command]
+        Task LoginAsync();
+        [Command]
+        Task LogoutAsync();
     }
 }

@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using System;
+﻿using System;
 using System.Linq;
 using System.Text;
 using System.Collections.Generic;
@@ -8,16 +7,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Buffers;
-using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Xml.Linq;
-using System.Linq.Expressions;
-using Microsoft.CodeAnalysis.Text;
 using System.ComponentModel;
-using static SourceCrafter.ViewModelSyntaxGenerator;
-using HttPie.Generator.Constants;
 
 [assembly: InternalsVisibleTo("SourceCrafter.ViewModelGenerator.UnitTests")]
 
@@ -35,9 +26,11 @@ internal sealed class ViewModelSyntaxGenerator
     readonly Dictionary<string, List<(string name, bool isNullable, bool allowsNull)>> _fields = new();
     readonly string _namespace;
     readonly string _interfaceName;
-    readonly ImmutableArray<PropertySyntaxInfo> _properties;
 
-    bool _needsNotifyMethod;
+    private readonly HashSet<TypeFields> _buildFields = new(new FieldAggregatorComparer());
+    private Action? _buildProperties;
+    private Action? _commandBuilder;
+
     public string ClassName { get; }
 
     public readonly string FileName;
@@ -57,43 +50,68 @@ internal sealed class ViewModelSyntaxGenerator
 
         ClassName = _interfaceName[1..];
 
-        _properties = GetAllMembers(interfaceSymbol)
-            .Select(CollectPropertyInfo)
-            .ToImmutableArray();
+        GetAllMembers(interfaceSymbol);
 
         FileName = string.Format("{0}.{1}.g.cs", interfaceSymbol.ContainingNamespace.ToString().Replace("<global namespace>", ""), ClassName);
         _builder = new StringBuilder();
     }
 
-    private static ImmutableArray<IPropertySymbol> GetAllMembers(ITypeSymbol interfaceSymbol)
+    private void GetAllMembers(ITypeSymbol interfaceSymbol)
     {
-        var arr = ImmutableArray.CreateBuilder<IPropertySymbol>();
-
         foreach (var item in interfaceSymbol.GetMembers())
         {
-            if (item is not IPropertySymbol prop) continue;
-            arr.Add(prop);
+            if (item is IPropertySymbol prop)
+                CollectPropertyInfo(prop);
+            else if (item is IMethodSymbol method && HasCommandAttribute(method, out var generic))
+                CollectCommand(method, generic);
         }
 
         foreach (var iface in interfaceSymbol.AllInterfaces)
         {
             foreach (var item in iface.GetMembers())
             {
-                if (item is not IPropertySymbol prop2) continue;
-                arr.Add(prop2);
+                if (item is IPropertySymbol prop2)
+                    CollectPropertyInfo(prop2);
+                else if (item is IMethodSymbol method2 && HasCommandAttribute(method2, out var generic))
+                    CollectCommand(method2, generic);
             }
         }
-
-        return arr.ToImmutableArray();
     }
 
-    private PropertySyntaxInfo CollectPropertyInfo(IPropertySymbol propInfo)
+    private void CollectCommand(IMethodSymbol method, string? generic)
+    {
+        string
+            propName = method.Name + "Command",
+            typeName = "RelayCommand" + generic,
+            fieldName = GetFieldName(propName);
+
+        if (method.ReturnType.Name == "Task")
+            typeName = "Async" + typeName;
+
+        _buildFields.Add(new("global::CommunityToolkit.Mvvm.Input." + typeName, initLen => CreateField(initLen, method.ReturnType, fieldName)));
+
+        _commandBuilder += () =>
+            _builder.AppendFormat(@"
+
+    public global::CommunityToolkit.Mvvm.Input.{0} {1} => {2} ??= new ({3});", typeName, propName, fieldName, method.Name);
+
+    }
+
+    private bool HasCommandAttribute(IMethodSymbol method, out string? generic)
+    {
+        generic = method.Parameters.Length == 1
+            ? string.Format("<{0}>", method.Parameters[0].Type.ToDisplayString(GlobalizedNamespace))
+            : null;
+        return method.HasAttribute("SourceCrafter.Mvvm.Attributes", "Command");
+    }
+
+    private void CollectPropertyInfo(IPropertySymbol propInfo)
     {
         string
             propName = propInfo.Name,
             typeName = propInfo.Type.ToDisplayString(GlobalizedNamespace),
             fieldName = GetFieldName(propName);
-        
+
         var info = PropertySyntaxInfo.Create(propInfo, typeName, propName, fieldName);
 
         if (!info.Ignore && info.Getter != null)
@@ -108,9 +126,13 @@ internal sealed class ViewModelSyntaxGenerator
                 {
                     case AssignmentExpressionSyntax
                     {
-                        Left: DeclarationExpressionSyntax {
-                            Designation: ParenthesizedVariableDesignationSyntax {
-                                Variables: { Count: > 0 and int count } vars } },
+                        Left: DeclarationExpressionSyntax
+                        {
+                            Designation: ParenthesizedVariableDesignationSyntax
+                            {
+                                Variables: { Count: > 0 and int count } vars
+                            }
+                        },
                         Right: TupleExpressionSyntax { Arguments: { } args } tupleRight
                     } declarator
                     :
@@ -140,7 +162,7 @@ internal sealed class ViewModelSyntaxGenerator
                     :
                         foreach (var item in contents)
                         {
-                            if(item is InterpolationSyntax { Expression:{ } expr })
+                            if (item is InterpolationSyntax { Expression: { } expr })
                                 expr.DescendantNodes(n => WalkDownNodes(n, currentNestedScope, variableCollector)).Walk();
                         }
                         return false;
@@ -148,11 +170,11 @@ internal sealed class ViewModelSyntaxGenerator
                     :
                         switch (expr)
                         {
-                            case MemberAccessExpressionSyntax { Expression: { } subExpre }:
-                                subExpre.DescendantNodes(n => WalkDownNodes(n, currentNestedScope, variableCollector)).Walk(); 
+                            case MemberAccessExpressionSyntax { Expression: { } subExpr }:
+                                subExpr.DescendantNodes(n => WalkDownNodes(n, currentNestedScope, variableCollector)).Walk();
                                 break;
-                            case ConditionalAccessExpressionSyntax { Expression: { } subExpre }:
-                                subExpre.DescendantNodes(n => WalkDownNodes(n, currentNestedScope, variableCollector)).Walk();
+                            case ConditionalAccessExpressionSyntax { Expression: { } subExpr }:
+                                subExpr.DescendantNodes(n => WalkDownNodes(n, currentNestedScope, variableCollector)).Walk();
                                 break;
                             default:
                                 expr.DescendantNodes(n => WalkDownNodes(n, currentNestedScope, variableCollector)).Walk();
@@ -267,19 +289,34 @@ internal sealed class ViewModelSyntaxGenerator
             }
         }
 
-        if (info is { IsImplemented: false, Ignore: false })
-        {
-            if (!info.IsReadOnly || info.IsCommand)
-                _fields.AddNested(typeName, (fieldName, propInfo.Type.IsNullable(), propInfo.Type.AllowsNull()));
+        if (info is { IsImplemented: false, Ignore: false, IsReadOnly: false })
+            _buildFields.Add(new(typeName, initLen => CreateField(initLen, propInfo.Type, fieldName)));
 
-            if (!info.IsCommand)
-                _needsNotifyMethod = true;
-        }
-
-        return info;
-
-
+        _buildProperties += () => BuildProperty(info);
     }
+
+    private void CreateField(int initLen, ITypeSymbol type, string fieldName)
+    {
+        bool isNullable = type.IsNullable(),
+            allowsNull = type.AllowsNull();
+
+        if (_builder.Length > initLen)
+            _builder.Append(",");
+
+        _builder.AppendFormat(@"
+        {0}", fieldName);
+
+        if (allowsNull)
+        {
+            _builder.Append(" = default");
+
+            if (!isNullable)
+                _builder.Append("!");
+        }
+    }
+
+
+
     static bool ReturnsNotifiableType(ISymbol? symbol, out INamedTypeSymbol type) =>
         (type = ((symbol as ILocalSymbol)?.Type as INamedTypeSymbol)!) != null && IsNotifiableType(type);
 
@@ -297,10 +334,10 @@ internal sealed class ViewModelSyntaxGenerator
         return isParentInvoke2;
     }
 
-    private static bool IsNotifiable(IPropertySymbol id)
-    {
-        return id.ContainingType.HasAttribute(NAMESPACE, ATTRIBUTE);
-    }
+    //private static bool IsNotifiable(IPropertySymbol id)
+    //{
+    //    return id.ContainingType.HasAttribute(NAMESPACE, ATTRIBUTE);
+    //}
 
     private static string GetFieldName(string input)
     {
@@ -332,7 +369,8 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
 
         BuildFields();
 
-        BuildProperties();
+        _buildProperties?.Invoke();
+        _commandBuilder?.Invoke();
 
         if (_dependencies.Count > 0)
         {
@@ -356,177 +394,113 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
 
     private void BuildFields()
     {
-        int initLen = _builder.Length;
-
-        //Build fields syntax
-        _fields.Aggregate(_builder, (_, kv) =>
+        foreach (var fieldBuilderDesc in _buildFields)
         {
-            var start = _builder.AppendFormat(@"
+            _builder.AppendFormat(@"
 
-    private {0}", kv.Key);
+    private {0}", fieldBuilderDesc.TypeName);
 
-            initLen = _builder.Length;
+            fieldBuilderDesc.Builders(_builder.Length);
 
-            kv.Value.Aggregate(start, (_, fieldInfo) =>
-            {
-                if (_builder.Length > initLen)
-                    _builder.Append(",");
-
-                _builder.AppendFormat(@"
-        {0}", fieldInfo.name);
-
-                if (fieldInfo.allowsNull)
-                {
-                    _builder.Append(" = default");
-
-                    if (!fieldInfo.isNullable)
-                        _builder.Append("!");
-                }
-
-                return _builder;
-            });
-
-            return start.Append(";");
-        });
+            _builder.Append(@";");
+        }
     }
 
-    void BuildProperties()
+    private void BuildProperty(PropertySyntaxInfo prop)
     {
-        //Build properies
-        foreach (var prop in _properties)
-        {
-            _builder.Append(@"
-    ");
-            var hasDependencies = _dependencies.TryGetValue(prop.Symbol, out var deps) && deps.NotifyTo.Any();
+        _builder.Append(@"
+    "); ;
 
-            if (prop.IsCommand)
+        _builder.AppendFormat(@"
+    public {0} {1}", prop.Type, prop.Name);
+
+        if (prop.IsReadOnly && prop.IsSingleStatementGetter)
+        {
+            _builder.Append($" => {prop.Getter};");
+            return;
+        }
+
+        _builder.Append(" {");
+
+        if (!prop.IsWriteOnly)
+        {
+            _builder.Append($@"{(prop.IsReadOnly || prop.Ignore ? " " : @"
+        ")}get");
+
+            if (prop.UseBackingField || prop.IsSingleStatementGetter)
+                _builder.Append(" =>");
+
+            _builder.Append($" {(prop.UseBackingField ? prop.BackingField : prop.Getter)}".TrimEnd());
+
+            if (!prop.IsImplemented || prop.IsSingleStatementGetter)
+                _builder.Append(";");
+
+
+            if (prop.IsReadOnly)
             {
-                BuildCommandProperty(prop.Type, prop.Name, prop.BackingField, prop.CommandInfo);
+                if (!prop.IsSingleStatementGetter)
+                    _builder.Append(" }");
+                return;
+            }
+        }
+
+        if (!prop.IsReadOnly)
+        {
+            _builder.Append(prop.IsWriteOnly || prop.Ignore ? " " : @"
+        ");
+            _builder.Append("set");
+
+            if (prop.Ignore)
+            {
+                if (prop.IsSingleStatementSetter)
+                    _builder.Append(" =>");
+
+                _builder.Append($" {prop.Setter}".TrimEnd());
+
+                if (prop.IsSingleStatementSetter || prop.Getter == null)
+                    _builder.Append(";");
+
+                if (!prop.IsImplemented)
+                {
+                    _builder.Append(" }");
+                    return;
+                }
             }
             else
             {
-                _builder.AppendFormat(@"
-    public {0} {1}", prop.Type, prop.Name);
-
-                if (prop.IsReadOnly && prop.IsSingleStatementGetter)
-                {
-                    _builder.Append($" => {prop.Getter};");
-                    continue;
-                }
-
-                _builder.Append(" {");
-
-                if (!prop.IsWriteOnly)
-                {
-                    _builder.Append($@"{(prop.IsReadOnly || prop.Ignore ? " " : @"
-        ")}get");
-
-                    if (prop.UseBackingField || prop.IsSingleStatementGetter)
-                        _builder.Append(" =>");
-
-                    _builder.Append($" {(prop.UseBackingField ? prop.BackingField : prop.Getter)}".TrimEnd());
-
-                    if (!prop.IsImplemented || prop.IsSingleStatementGetter)
-                        _builder.Append(";");
-
-
-                    if (prop.IsReadOnly)
-                    {
-                        if (!prop.IsSingleStatementGetter)
-                            _builder.Append(" }");
-                        continue;
-                    }
-                }
-
-                if (!prop.IsReadOnly)
-                {
-                    _builder.Append(prop.IsWriteOnly || prop.Ignore ? " " : @"
-        ");
-                    _builder.Append("set");
-
-                    if (prop.Ignore)
-                    {
-                        if (prop.IsSingleStatementSetter)
-                            _builder.Append(" =>");
-
-                        _builder.Append($" {prop.Setter}".TrimEnd());
-
-                        if (prop.IsSingleStatementSetter || prop.Getter == null)
-                            _builder.Append(";");
-
-                        if (!prop.IsImplemented)
-                        {
-                            _builder.Append(" }");
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        _builder.AppendFormat(@" {{
+                _builder.AppendFormat(@" {{
             if(Equals(value, {0}))
                 return;
             ", prop.UseBackingField ? prop.BackingField : prop.Name);
 
-                        if (prop.UseBackingField && !prop.IsWriteOnly)
-                            _builder.AppendFormat("{0} = value;", prop.BackingField);
+                if (prop.UseBackingField && !prop.IsWriteOnly)
+                    _builder.AppendFormat("{0} = value;", prop.BackingField);
 
-                        if (!prop.IsSingleStatementSetter && prop.Setter is BlockSyntax bs)
-                            bs.Statements
-                                .Aggregate(_builder, (sb, st) => sb
-                                    .Append($@"
+                if (!prop.IsSingleStatementSetter && prop.Setter is BlockSyntax bs)
+                    bs.Statements
+                        .Aggregate(_builder, (sb, st) => sb
+                            .Append($@"
             {st}"));
-                        else if (prop.Setter != null)
-                            _builder.Append(prop.Setter)
-                                .Append(";");
+                else if (prop.Setter != null)
+                    _builder.Append(prop.Setter)
+                        .Append(";");
 
-                        _builder.AppendFormat(@"
-            {0}(new(""{1}""));", hasDependencies ? "NotifyChange" : "OnPropertyChanged", prop.Name);
-
-                        _builder.Append(@"
-        }");
-                    }
-
-                }
+                _builder.AppendFormat(@"
+            {0}(new(""{1}""));", hasDependencies(prop) ? "NotifyChange" : "OnPropertyChanged", prop.Name);
 
                 _builder.Append(@"
+        }");
+            }
+
+        }
+
+        _builder.Append(@"
     }");
 
-            }
+        bool hasDependencies(PropertySyntaxInfo prop)
+        {
+            return _dependencies.TryGetValue(prop.Symbol, out var deps) && deps.NotifyTo.Count > 0;
         }
-    }
-
-    private void BuildCommandProperty(string typeName, string propName, string fieldName, CommandInfo info)
-    {
-        string
-            baseMethodName = $"Execute{propName[0..^7]}",
-            methodName = info.IsAsync ? $"{baseMethodName}Async" : baseMethodName,
-            parameterSyntax = typeName.IndexOf("<", StringComparison.Ordinal) is { } a and > 0 &&
-                              typeName[a..(typeName.LastIndexOf('>') + 1)] is ['<', .. { Length: > 0 } genericArgumentName, '>']
-                              ? $"{genericArgumentName} parameter"
-                              : "";
-
-        _builder.AppendFormat(@"
-    public {0} {1} => {2} ??= new {0}({3}", typeName, propName, fieldName, methodName);
-
-        if (info.CheckExec)
-            _builder.AppendFormat(", Can{0}", baseMethodName);
-
-        if (info.IsAsync)
-            _builder.AppendFormat(", {0}", info.AsyncOption);
-
-        _builder.Append(@");
-
-    ");
-
-        if (info.CheckExec)
-            _builder.AppendFormat(@"private partial bool Can{0}({1});
-
-    ", baseMethodName, parameterSyntax);
-
-        _builder
-            .AppendFormat(@"{0} {1}({2});
-    ", info.IsAsync ? "private partial global::System.Threading.Tasks.Task" : "partial void", methodName, parameterSyntax);
-
     }
 
     private void BuildSwitch(StringBuilder code, PropertyDependencyTree dependencies, int indent = 2, string parentEvtArgName = "evtArgs", int level = 0)
@@ -567,12 +541,10 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
 {indentStr}}}");
     }
 
-    internal record struct PropertySyntaxInfo(string Type, string Name, string BackingField, bool IsImplemented, CSharpSyntaxNode? Getter, CSharpSyntaxNode? Setter, bool IsReadOnly, bool IsWriteOnly, bool Ignore, bool IsCommand, CommandInfo CommandInfo)
+    internal record struct PropertySyntaxInfo(string Type, string Name, string BackingField, bool IsImplemented, CSharpSyntaxNode? Getter, CSharpSyntaxNode? Setter, bool IsReadOnly, bool IsWriteOnly, bool Ignore)
     {
         public static PropertySyntaxInfo Create(IPropertySymbol propSymbol, string typeName, string propName, string fieldName)
         {
-            var isCommand = propSymbol.Name.EndsWith("Command");
-            var isAsyncCommand = isCommand && propSymbol.Type.Name.StartsWith("Async");
 
             var (isImplemented, isReadOnly, isWriteOnly, getter, setter, ignore) = propSymbol switch
             {
@@ -581,21 +553,16 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
 
                 { IsIndexer: false, GetMethod: var getMethod, SetMethod: var setMethod, IsReadOnly: var isRo, IsWriteOnly: var isWo } =>
                     (!(getMethod?.IsAbstract ?? true),
-                        isRo,
-                        isWo,
-                        TryReduceMethod(getMethod),
-                        TryReduceMethod(setMethod),
-                        propSymbol.ContainsAttribute("Ignore")),
+                     isRo,
+                     isWo,
+                     TryReduceMethod(getMethod),
+                     TryReduceMethod(setMethod),
+                     propSymbol.ContainsAttribute("Ignore")),
 
                 _ => default
             };
-            bool checkExec = default;
-            string? asyncOption = default;
 
-            if (isCommand)
-                GetCommandOptions(propSymbol.GetAttributes(), out checkExec, out asyncOption);
-            
-            return new(typeName, propName, fieldName, isImplemented, getter, setter, isReadOnly, isWriteOnly, ignore, isCommand, new(isAsyncCommand, checkExec, asyncOption))
+            return new(typeName, propName, fieldName, isImplemented, getter, setter, isReadOnly, isWriteOnly, ignore)
             {
                 Symbol = propSymbol,
                 IsSingleStatementGetter = getter is { } and not BlockSyntax,
@@ -603,7 +570,7 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
             };
         }
 
-        public bool UseBackingField => !Ignore && !IsImplemented && !IsReadOnly;
+        public readonly bool UseBackingField => !Ignore && !IsImplemented && !IsReadOnly;
 
         public IPropertySymbol Symbol { get; internal set; }
         public bool IsSingleStatementGetter { get; private set; }
@@ -638,9 +605,6 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
             }
         }
     }
-
-    internal record struct CommandInfo(bool IsAsync, bool CheckExec, string? AsyncOption);
-
 
     static bool IsAssignableFrom(ITypeSymbol type, ITypeSymbol _base) =>
             SymbolEqualityComparer.Default.Equals(type, _base) ||
@@ -724,7 +688,8 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
         private string GetIndentedString(int level = 1)
         {
             return string.Join(",",
-                this.Select(kv => {
+                this.Select(kv =>
+                {
                     string indent = new string(' ', level * 2);
                     return '\n' + indent + kv.Key.Name +
                         (kv.Value.Count > 0
@@ -743,4 +708,25 @@ public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase, {2}
 
         public int GetHashCode(T obj) => obj.GetHashCode();
     }
+
+    private class FieldAggregatorComparer : IEqualityComparer<TypeFields>
+    {
+        public bool Equals(TypeFields x, TypeFields y)
+        {
+            if (x.TypeName.Equals(y.TypeName))
+            {
+                x.Builders += y.Builders;
+                return true;
+            }
+            return false;
+        }
+
+        public int GetHashCode(TypeFields obj) => obj.TypeName.GetHashCode();
+    }
+}
+
+internal class TypeFields(string typeName, Action<int> builders)
+{
+    internal string TypeName => typeName;
+    internal Action<int> Builders = builders;
 }
