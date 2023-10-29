@@ -1,4 +1,4 @@
-﻿# ✨ **Mvvm.Extensions**: Generates simple partial classes for observable view models 
+﻿# ✨ **SourceCrafter.ViewModelGenerator**: Generates simple partial classes for observable view models 
 
 ### Given the following spec interface
 ```csharp
@@ -28,7 +28,8 @@ public interface IUser
             CanDrink = !IsUnder18;
         }
     }
-    AsyncRelayCommand<Role> AddParentCommand { get; }
+    [Command]
+    void AddRole(Role role);
 }
 ```
 
@@ -102,11 +103,7 @@ public partial class User : ViewModelBase, IUser
         }
     }
 
-    public AsyncRelayCommand<Role> AddParentCommand => _addParentCommand ??= new AsyncRelayCommand<Role>(ExecuteAddParentAsync, CanExecuteAddParent, AsyncRelayCommandOptions.None);
-
-    private partial bool CanExecuteAddParent(Role parameter);
-
-    private partial Task ExecuteAddParentAsync(Role parameter);
+    public AsyncRelayCommand<Role> AddRoleCommand => _addParentCommand ??= new AsyncRelayCommand<Role>(AddRole, AsyncRelayCommandOptions.None);
 }
 ```
 
@@ -115,9 +112,7 @@ And you will have to complement it with commands methods definition
 ```cs
 public partial class User
 {
-    private partial bool CanExecuteAddParent(Role parameter) => true;
-
-    private partial Task ExecuteAddParentAsync(Role parameter) => Task.CompletedTask;
+    private AddRole(Role parameter) => /*Add role to list*/;
 }
 ```
 
