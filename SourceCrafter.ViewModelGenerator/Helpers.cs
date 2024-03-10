@@ -3,7 +3,11 @@
 
 
 // ReSharper disable once CheckNamespace
+using Microsoft.CodeAnalysis;
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 
 namespace System.Runtime.CompilerServices
 {
@@ -18,3 +22,55 @@ namespace System.Runtime.CompilerServices
 }
 
 #endif
+
+namespace SourceCrafter.Mvvm
+{
+    public static class RoslynExtensions
+    {
+        public static bool IsNullable(this ITypeSymbol typeSymbol)
+        {
+            if (typeSymbol != null && (typeSymbol.NullableAnnotation == NullableAnnotation.Annotated || (typeSymbol is INamedTypeSymbol && typeSymbol.Name == "Nullable")))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool AllowsNull(this ITypeSymbol typeSymbol)
+        {
+            if (typeSymbol == null || typeSymbol.IsValueType || typeSymbol.IsTupleType)
+            {
+                return typeSymbol?.IsNullable() ?? false;
+            }
+
+            return typeSymbol.IsReferenceType;
+        }
+
+        public static bool IsAttributeName(this string clsName, AttributeData attr)
+        {
+            return attr.HasAttribute(clsName);
+        }
+
+        public static bool HasAttribute(this AttributeData attr, string clsName)
+        {
+            return attr.AttributeClass?.Name == clsName;
+        }
+        public static void Deconstruct<TKey, TValue>(this KeyValuePair<TKey, TValue> source, out TKey key, out TValue val)
+        {
+            key = source.Key;
+            val = source.Value;
+        }
+
+        public static string Join<T>(this IEnumerable<T> strs, Func<T, string> formmater, string? separator = "")
+        {
+            return string.Join(separator, strs.Select(formmater));
+        }
+
+        public static string Join<T>(this IEnumerable<T> strs, string? separator = "")
+        {
+            return strs.Join(t => t?.ToString() ?? "", separator);
+        }
+
+    }
+}

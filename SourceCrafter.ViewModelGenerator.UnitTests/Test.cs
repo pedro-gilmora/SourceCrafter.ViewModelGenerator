@@ -548,11 +548,11 @@ namespace SourceCrafter.ViewModelGenerator.UnitTests
     }
 }").GetRoot();
             var e = CSharpCompilation.Create("Test",
-                new[] { root.SyntaxTree },
-                new[] {
+                [root.SyntaxTree],
+                [
                     MetadataReference.CreateFromFile(typeof(AsyncRelayCommandOptions).Assembly.Location),
                     //MetadataReference.CreateFromFile(typeof(CommandOptionsAttribute).Assembly.Location)
-                });
+                ]);
 
             var sm = e.GetSemanticModel(root.SyntaxTree);
 
@@ -615,4 +615,5 @@ namespace SourceCrafter.ViewModelGenerator.UnitTests
             //r.Name.Should().Be("Pedro Gil");
         }
     }
+
 }

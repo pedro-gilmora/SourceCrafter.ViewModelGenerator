@@ -1,8 +1,7 @@
 ﻿#nullable enable
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics;
+using SourceCrafter.Mvvm;
 
 namespace SourceCrafter;
 
@@ -12,9 +11,9 @@ internal class ViewModelGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
 
-#if DEBUG
-        Debugger.Launch();
-#endif
+// #if DEBUG
+//         Debugger.Launch();
+// #endif
         context.RegisterSourceOutput(
             context.CompilationProvider,
             (sourceProducer, _) => sourceProducer.AddSource("SourceCrafter.Mvvm.Attributes.CommandOptionsAttribute.g.cs", @"using CommunityToolkit.Mvvm.Input;

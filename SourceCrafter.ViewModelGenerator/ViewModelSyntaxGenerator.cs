@@ -9,10 +9,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Runtime.CompilerServices;
 using System.Buffers;
 using System.ComponentModel;
+using SourceCrafter.Mvvm;
 
 [assembly: InternalsVisibleTo("SourceCrafter.ViewModelGenerator.UnitTests")]
 
-namespace SourceCrafter;
+namespace SourceCrafter.Mvvm;
 
 internal sealed class ViewModelSyntaxGenerator
 {
