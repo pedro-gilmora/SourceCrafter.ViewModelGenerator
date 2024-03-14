@@ -1,36 +1,18 @@
-﻿//using FacilCuba.Infrastructure.QvaPay;
-//using FacilCuba.Views;
-using HttPie.Generator;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.ComponentModel;
-using System.Text.Json;
+﻿using CommunityToolkit.Mvvm.Input;
+
+using SourceCrafter.Mvvm;
+using SourceCrafter.Mvvm.Attributes;
 
 namespace FacilCuba.ViewModels
 {
-    public partial class Authentication
+    [Reactive]
+    public abstract partial class Authentication : ViewModelBase
     {
-        //internal const string AUTH_KEY = "authToken";
-        //internal readonly QvaPayClient _qvaPayClient;
-
-        //public Authentication(QvaPayClient authenticationService)
-        //{
-        //    _qvaPayClient = authenticationService;
-        //    PropertyChanged += OnTokenChange;
-        //}
-        internal Task EnsureAuthorization() => throw new NotImplementedException();
-
-        //internal void OnTokenChange(object? sender, PropertyChangedEventArgs e)
-        //{
-        //    if (e.PropertyName == nameof(Token))
-        //    {
-        //        if (Token != null) { 
-        //            _qvaPayClient.UpdateAuthenticationStatus(Token);
-        //        }
-        //    }
-        //}
-
-        public Task LoginAsync() => throw new NotImplementedException();
-
-        public Task LogoutAsync() => throw new NotImplementedException();
+        public virtual string? Email { get; set; }
+        public virtual string? Password { get; set; }
+        public virtual string? Token { get; set; }
+        public virtual bool IsBusy { get; set; }
+        public bool ClearBrowserData { get; }
+        public virtual bool CanLogin => !IsBusy && !string.IsNullOrEmpty(Email?.Trim()) && !string.IsNullOrEmpty(Password?.Trim());
     }
 }

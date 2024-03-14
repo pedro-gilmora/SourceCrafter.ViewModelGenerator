@@ -2,6 +2,7 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace SourceCrafter.Mvvm
 {
@@ -9,6 +10,17 @@ namespace SourceCrafter.Mvvm
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event PropertyChangingEventHandler? PropertyChanging;
+
+        protected void Set<T>(ref T value, T newValue, [CallerMemberName] string propName = null!) where T : class
+        {
+            if (value != newValue) return;
+
+            PropertyChanging?.Invoke(this, new(propName));
+
+            value = newValue;
+
+            PropertyChanged?.Invoke(this, new(propName));
+        }
 
         protected void OnPropertyChanged(PropertyChangedEventArgs propertyNameEvtArg) => PropertyChanged?.Invoke(this, propertyNameEvtArg);
 
@@ -26,11 +38,5 @@ namespace SourceCrafter.Mvvm
                 return;
             PropertyChanged += handler;
         }
-
-        public void NotifyExternalDependency(ViewModelBase external, string propertyName, string externalPropertyName) =>
-            Subscribe((s, a) => {
-                if (a.PropertyName == propertyName)
-                    external.OnPropertyChanged(new(externalPropertyName));
-            });
     }
 }

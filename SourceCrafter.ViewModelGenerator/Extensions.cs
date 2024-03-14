@@ -16,29 +16,6 @@ namespace SourceCrafter;
 
 public static class Helpers
 {
-    public static void Deconstruct(
-        this IPropertySymbol propSymbol,
-        out bool isImplemented,
-        out CSharpSyntaxNode? getter,
-        out CSharpSyntaxNode? setter,
-        out bool isCommand,
-        out bool isReadOnly,
-        out bool ignore)
-    {
-        isCommand = propSymbol.Type.Name.Contains("RelayCommand") && propSymbol.Name.EndsWith("Command");
-        (isImplemented, isReadOnly, getter, setter, ignore) = propSymbol switch
-        {
-            { IsIndexer: false, DeclaringSyntaxReferences: [.., { } propSyntaxRef] } when propSyntaxRef.GetSyntax() is PropertyDeclarationSyntax { ExpressionBody: { } body } =>
-                (true, true, body, null, IgnoreProperty(propSymbol)),
-            { IsIndexer: false, GetMethod: var getMethod, SetMethod: var setMethod, IsReadOnly: var isRo } =>
-                (!(getMethod?.IsAbstract ?? true),
-                    isRo,
-                    TryReduceMethod(getMethod),
-                    TryReduceMethod(setMethod),
-                    IgnoreProperty(propSymbol)),
-            _ => default
-        };
-    }
 
     private static bool IgnoreProperty(IPropertySymbol property) =>
         property
@@ -70,7 +47,7 @@ public static class Helpers
     public static bool HasAttribute(this ISymbol property, string namespce, string attrName)
         => property.GetAttributes().Any(attr => true == 
             attr.AttributeClass?
-                .ToDisplayString(ViewModelSyntaxGenerator.GlobalizedNamespace)
+                .ToGlobalNamespace()
                 .StartsWith(string.Format("global::{0}.{1}", namespce, attrName)));
     public static bool ContainsAttribute(this IPropertySymbol property, string attrName) =>
         property.GetAttributes().Any(attr => attr.AttributeClass?.Name?.StartsWith(attrName) ?? false);

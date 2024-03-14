@@ -27,6 +27,30 @@ namespace SourceCrafter.Mvvm
 {
     public static class RoslynExtensions
     {
+        private readonly static SymbolDisplayFormat
+            _globalizedNamespace = new(
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+                genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters | SymbolDisplayGenericsOptions.IncludeVariance,
+                miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier),
+            _globalizedNonGenericNamespace = new(
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+                miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes),
+            _symbolNameOnly = new(typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameOnly),
+            _typeNameFormat = new(
+                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypes,
+                genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters | SymbolDisplayGenericsOptions.IncludeVariance,
+                miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
+        internal static string ToNameOnly(this ISymbol t) => t.ToDisplayString(_symbolNameOnly);
+
+        internal static string ToGlobalNamespace(this ISymbol t) => t.ToDisplayString(_globalizedNamespace);
+
+        internal static string ToGlobalNonGenericNamespace(this ISymbol t) => t.ToDisplayString(_globalizedNonGenericNamespace);
+
+        internal static string ToTypeNameFormat(this ITypeSymbol t) => t.ToDisplayString(_typeNameFormat);
+
         public static bool IsNullable(this ITypeSymbol typeSymbol)
         {
             if (typeSymbol != null && (typeSymbol.NullableAnnotation == NullableAnnotation.Annotated || (typeSymbol is INamedTypeSymbol && typeSymbol.Name == "Nullable")))

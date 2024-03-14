@@ -28,7 +28,6 @@ public interface IUser
             CanDrink = !IsUnder18;
         }
     }
-    AsyncRelayCommand<Role> AddParentCommand { get; }
 }
 ```
 
@@ -43,8 +42,6 @@ public partial class User : ViewModelBase, IUser
         _age;
     private bool 
         _canDrink;
-    private AsyncRelayCommand<Role> 
-        _addParentCommand;
 
     private static readonly PropertyChangedEventArgs
         _nameChangedEvtArg = new("Name"),
@@ -102,28 +99,7 @@ public partial class User : ViewModelBase, IUser
         }
     }
 
-    public AsyncRelayCommand<Role> AddParentCommand => _addParentCommand ??= new AsyncRelayCommand<Role>(ExecuteAddParentAsync, CanExecuteAddParent, AsyncRelayCommandOptions.None);
-
     private partial bool CanExecuteAddParent(Role parameter);
 
     private partial Task ExecuteAddParentAsync(Role parameter);
 }
-```
-
-And you will have to complement it with commands methods definition
-
-```cs
-public partial class User
-{
-    private partial bool CanExecuteAddParent(Role parameter) => true;
-
-    private partial Task ExecuteAddParentAsync(Role parameter) => Task.CompletedTask;
-}
-```
-
-## CommandOptionsAtribute
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| **`generateCanExecute`** | `bool` | Controls whether the `CanExecute` method will be generated or not. Default is `true` |
-| **`asyncOptions`** | [`AsyncRelayCommandOptions`](https://github.com/CommunityToolkit/dotnet/blob/e8969781afe537ea41a964a15b4ccfee32e095df/src/CommunityToolkit.Mvvm/Input/AsyncRelayCommandOptions.cs) | Options to customize the behavior of [`AsyncRelayCommand`](https://github.com/CommunityToolkit/dotnet/blob/e8969781afe537ea41a964a15b4ccfee32e095df/src/CommunityToolkit.Mvvm/Input/AsyncRelayCommand.cs) and [`AsyncRelayCommand`](https://github.com/CommunityToolkit/dotnet/blob/e8969781afe537ea41a964a15b4ccfee32e095df/src/CommunityToolkit.Mvvm/Input/AsyncRelayCommand%7BT%7D.cs) instances. Defaults to `AsyncRelayCommandOptions.None`

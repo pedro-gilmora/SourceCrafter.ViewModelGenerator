@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<LangVersion>preview</LangVersion>
-		<Configurations>Debug;Release;Pack;Pack</Configurations>
+		<Configurations>Debug;Release;Pack;DebugSG</Configurations>
 		<PackageVersion>
 			$([System.Convert]::ToUInt16(
 				$([MSBuild]::Add(
@@ -32,16 +32,6 @@
 		<Configurations>Debug;Release;Pack</Configurations>
 	</PropertyGroup>
 
-	<PropertyGroup Condition=" $(Configuration) == 'Test' ">
-		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-		<CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
-	</PropertyGroup>
-
-	<ItemGroup Condition=" $(Configuration) == 'Test' ">
-		<!-- Exclude the output of source generators from the compilation -->
-		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
-	</ItemGroup>
-
 	<ItemGroup>
 		<None Include="..\ReadMe.md">
 			<Pack>True</Pack>
@@ -60,19 +50,5 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" GeneratePathProperty="true" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" PrivateAssets="all" GeneratePathProperty="true" />
 	</ItemGroup>
-
-	<ItemGroup Condition=" '$(Configuration)' == 'Pack'">
-		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-	</ItemGroup>
-
-	<!--<PropertyGroup Condition=" '$(Configuration)' == 'Pack' ">
-		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
-	</PropertyGroup>
-
-	<Target Name="GetDependencyTargetPaths" Condition=" '$(Configuration)' == 'Pack' ">
-		<ItemGroup>
-			<TargetPathWithTargetPlatformMoniker Include="$(PKGSourceCrafter_Extensions)\lib\netstandard2.0\SourceCrafter.Extensions.dll" IncludeRuntimeDependency="true" />
-		</ItemGroup>
-	</Target>-->
 	
 </Project>

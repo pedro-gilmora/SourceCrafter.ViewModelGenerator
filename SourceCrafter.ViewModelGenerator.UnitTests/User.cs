@@ -1,4 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.Input;
+
+using SourceCrafter.Mvvm;
 using SourceCrafter.Mvvm.Attributes;
 
 namespace SourceCrafter.ViewModel.UnitTests
@@ -12,17 +14,17 @@ namespace SourceCrafter.ViewModel.UnitTests
     }
 
     [Reactive]
-    public interface IUser
+    public abstract partial class User : ViewModelBase
     {
-        string ActionName => $"Running action: {Action.Name}";
-        IAction Action { get; set; }
-        string FirstName { get; set; }
-        string? LastName { get; set; }
-        string Name => $"{FirstName} {LastName}".Trim();
-        bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
-        int Age { get; set; }
-        bool CanDrink { get; set; }
-        bool IsUnder18
+        public string ActionName => $"Running action: {Action.Name}";
+        public virtual IAction Action { get; set; }
+        public virtual string FirstName { get; set; }
+        public virtual string? LastName { get; set; }
+        public string Name => $"{FirstName} {LastName}".Trim();
+        public virtual bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
+        public virtual int Age { get; set; }
+        public virtual bool CanDrink { get; set; }
+        public virtual bool IsUnder18
         {
             get => Age < 18;
             set
@@ -35,12 +37,8 @@ namespace SourceCrafter.ViewModel.UnitTests
                     CanDrink = true;
             }
         }
-
-        [Command]
-        Task AddAsync(Role role);
     }
 
-    //[ObservableModel]
     public interface IAction
     {
         string? Name { get; set; }
