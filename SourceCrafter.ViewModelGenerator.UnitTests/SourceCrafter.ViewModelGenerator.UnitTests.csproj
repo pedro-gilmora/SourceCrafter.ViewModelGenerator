@@ -23,16 +23,8 @@
 		</PackageReference>
 	</ItemGroup>
 	
-  <ItemGroup Condition=" '$(Configuration)' == 'Debug' ">
+  <ItemGroup>
     <ProjectReference Include="..\SourceCrafter.ViewModelGenerator\SourceCrafter.ViewModelGenerator.csproj" PrivateAssets="all" OutputItemType="Analyzer" />
   </ItemGroup>
-
-	<PropertyGroup Condition=" '$(Configuration)' != 'Debug' ">
-		<RestoreSources>$(SolutionDir)/SourceCrafter.ViewModelGenerator/bin/Pack/;$(RestoreSources)</RestoreSources>
-	</PropertyGroup>
-
-	<ItemGroup Condition=" '$(Configuration)' != 'Debug' ">
-		<PackageReference Include="SourceCrafter.ViewModelGenerator" Version="1.24.70.40" />
-	</ItemGroup>
 
 </Project>

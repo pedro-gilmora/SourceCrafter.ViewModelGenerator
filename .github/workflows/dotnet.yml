@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: .NET 7 Build, test
+    name: .NET 8 Build, pack & test
     runs-on: 'ubuntu-latest'
 
     steps:      

@@ -9,7 +9,7 @@ using System.Linq;
 namespace SourceCrafter;
 
 [Generator]
-internal class ViewModelGenerator : IIncrementalGenerator
+public class ViewModelGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -23,9 +23,9 @@ internal class ViewModelGenerator : IIncrementalGenerator
             ).Collect(),
             static (sourceProducer, interfacesToGenerate) =>
             {
-//#if DEBUG
+#if DEBUG
 //                Debugger.Launch();
-//#endif
+#endif
                 foreach (var (_class, model) in interfacesToGenerate)
                 {
                     try
