@@ -56,43 +56,21 @@ internal sealed partial class ViewModelSyntaxGenerator
                 CollectPropertyInfo(prop);
     }
 
-    private void CreateField(int initLen, ITypeSymbol type, string fieldName)
-    {
-        bool isNullable = type.IsNullable(),
-            allowsNull = type.AllowsNull();
-
-        if (_builder.Length > initLen)
-            _builder.Append(",");
-
-        _builder.AppendFormat(@"
-        {0}", fieldName);
-
-        if (allowsNull)
-        {
-            _builder.Append(" = default");
-
-            if (!isNullable)
-                _builder.Append("!");
-        }
-    }
-
-
-
     static bool ReturnsNotifiableType(ISymbol? symbol, out INamedTypeSymbol type) =>
         (type = ((symbol as ILocalSymbol)?.Type as INamedTypeSymbol)!) != null && IsNotifiableType(type);
 
 
     static bool IsParentInvocation(SyntaxNode x, SyntaxNode accRoot)
     {
-        var parent2 = x.Parent!;
-        var isParentInvoke2 = false;
+        var parent = x.Parent!;
+        var isParentInvoke = false;
 
-        while (parent2 != null && parent2 != accRoot && parent2 is not StatementSyntax && !(isParentInvoke2 = parent2 is InvocationExpressionSyntax { Expression.Span.End: { } end } && end == x.Span.End))
+        while (parent != null && parent != accRoot && parent is not StatementSyntax && !(isParentInvoke = parent is InvocationExpressionSyntax { Expression.Span.End: { } end } && end == x.Span.End))
         {
-            parent2 = parent2?.Parent;
+            parent = parent?.Parent;
         }
 
-        return isParentInvoke2;
+        return isParentInvoke;
     }
 
     //private static bool IsNotifiable(IPropertySymbol id)
@@ -118,15 +96,16 @@ internal sealed partial class ViewModelSyntaxGenerator
             ArrayPool<char>.Shared.Return(buffer);
         }
     }
+
     public override string ToString()
     {
         _builder.AppendFormat(@"//<auto generated>
 #nullable enable
 
-namespace {0}.Implementation;
+namespace {0};
 
-public partial class {1} : {2} 
-{{", _namespace, _className, _fullName);
+public partial class {1} : global::SourceCrafter.Mvvm.ViewModelBase
+{{", _namespace, _className);
 
         _buildProperties?.Invoke();
 
@@ -157,7 +136,7 @@ public partial class {1} : {2}
     "); ;
 
         _builder.AppendFormat(@"
-    public new {0} {1}", prop.Type, prop.Name);
+    public partial {0} {1}", prop.Type, prop.Name);
 
         if (prop.IsReadOnly && prop.IsSingleStatementGetter)
         {
@@ -165,21 +144,15 @@ public partial class {1} : {2}
             return;
         }
 
-        _builder.Append(" {");
+        _builder.Append(@" 
+    {");
 
         if (!prop.IsWriteOnly)
         {
             _builder.Append($@"{(prop.IsReadOnly || prop.Ignore ? " " : @"
         ")}get");
 
-            if (prop.UseBackingField || prop.IsSingleStatementGetter)
-                _builder.Append(" =>");
-
-            _builder.Append($" base.{prop.Name}".TrimEnd());
-
-            if (!prop.IsImplemented || prop.IsSingleStatementGetter)
-                _builder.Append(";");
-
+            _builder.Append(";");
 
             if (prop.IsReadOnly)
             {
@@ -213,15 +186,14 @@ public partial class {1} : {2}
             }
             else
             {
-                string backingValue = "base." + prop.Name;
-
-                _builder.AppendFormat(@" {{
-            if(Equals(value, {0}))
+                _builder.AppendFormat(@" 
+        {{
+            if(Equals(value, field))
                 return;
-            ", backingValue);
+            ");
 
                 if (!prop.IsWriteOnly)
-                    _builder.AppendFormat("{0} = value;", backingValue);
+                    _builder.AppendFormat("field = value;");
 
                 _builder.AppendFormat(@"
             {0}(new(""{1}""));", hasDependencies(prop) ? "NotifyChange" : "OnPropertyChanged", prop.Name);
@@ -241,28 +213,34 @@ public partial class {1} : {2}
         }
     }
 
-    private void BuildSwitch(StringBuilder code, PropertyDependencyTree dependencies, int indent = 2, string parentEvtArgName = "evtArgs", int level = 0)
+    private void BuildSwitch(StringBuilder code, PropertyDependencyTree dependencies, string? parentProp = null, int indent = 2, string parentEvtArgName = "evtArgs", int level = 0)
     {
         if (dependencies.Count == 0) return;
 
         string indentStr = new(' ', indent * 4);
 
         code.Append($@"
-{indentStr}switch({parentEvtArgName}.PropertyName){{");
+{indentStr}switch({parentEvtArgName}.PropertyName)
+{indentStr}{{");
         foreach (var (prop, deps) in dependencies)
         {
             code.Append($@"
 {indentStr}    case ""{prop.Name}"":");
 
+            if (parentProp != null)
+                code.AppendFormat(@"
+{0}        OnPropertyChanged(new(""{1}""));", indentStr, parentProp);
+
             if (deps.Count > 0)
             {
                 code.AppendFormat(@"
-{0}         ({1} as global::SourceCrafter.Mvvm.IObservable)?.Subscribe((s{2}, e{2}) => {{", indentStr, prop.Name, level);
+{0}        ({1} as global::SourceCrafter.Mvvm.IObservable)?.Subscribe((s{2}, e{2}) => 
+{0}        {{", indentStr, prop.Name, level);
 
-                BuildSwitch(code, deps, indent + 3, $"e{level}", level + 1);
+                BuildSwitch(code, deps, prop.Name, indent + 3, $"e{level}", level + 1);
 
                 code.AppendFormat(@"
-{0}         }});", indentStr);
+{0}        }});", indentStr);
             }
 
             foreach (var item in deps.NotifyTo)
@@ -411,7 +389,7 @@ public partial class {1} : {2}
             return string.Join(",",
                 this.Select(kv =>
                 {
-                    string indent = new string(' ', level * 2);
+                    string indent = new(' ', level * 2);
                     return '\n' + indent + kv.Key.Name +
                         (kv.Value.Count > 0
                             ? ": [" + kv.Value.GetIndentedString(level + 1) + '\n' + indent + "]"

@@ -18,14 +18,14 @@ public class ViewModelGenerator : IIncrementalGenerator
                 $"{ViewModelSyntaxGenerator.NAMESPACE}.{ViewModelSyntaxGenerator.ATTRIBUTE}Attribute",
                 static (n, _) => 
                     n is ClassDeclarationSyntax { Modifiers: { } list } 
-                    && list.Any(t => t.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.AbstractKeyword)),
+                    && list.Any(t => t.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)),
                 static (ctx, _) => ((ITypeSymbol)ctx.TargetSymbol, Model: ctx.SemanticModel)
             ).Collect(),
             static (sourceProducer, interfacesToGenerate) =>
             {
-#if DEBUG
+//#if DEBUG
 //                Debugger.Launch();
-#endif
+//#endif
                 foreach (var (_class, model) in interfacesToGenerate)
                 {
                     try

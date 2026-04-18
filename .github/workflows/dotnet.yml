@@ -1,4 +1,4 @@
-name: 'SourceCrafter.ViewModelGenerator: build, test & deploy'
+name: 'SourceCrafter.ViewModelGenerator: Build, test & deploy'
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: .NET 8 Build, pack & test
+    name: .NET 10 Build, pack & test
     runs-on: 'ubuntu-latest'
 
     steps:      
@@ -16,7 +16,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 10.0.x
 
     - name: Restore dependencies
       run: |

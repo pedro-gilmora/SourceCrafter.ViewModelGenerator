@@ -6,11 +6,11 @@ using SourceCrafter.ViewModel.UnitTests;
 namespace FacilCuba.ViewModels
 {
     [Reactive]
-    public abstract partial class AppManager : ViewModelBase
+    public partial class AppManager
     {
-        public virtual User? User { get; set; }
+        public partial User? User { get; set; }
 
-        public virtual Authentication? Authentication { get; set; }
+        public partial Authentication? Authentication { get; set; }
 
         public bool IsAuthenticated => Authentication is { Token.Length: 0 } or { CanLogin: false };
     }

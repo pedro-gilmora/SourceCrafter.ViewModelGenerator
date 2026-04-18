@@ -2,104 +2,74 @@
 
 ### Given the following spec interface
 ```csharp
-public enum Role
+[Reactive]
+public partial class AppManager
 {
-    Admin,
-    Moderator,
-    Guest,
-    User
-}
+    public partial User? User { get; set; }
 
-[ObservableModel]
-public interface IUser
-{
-    string FirstName { get; set; }
-    [Ignore]
-    string? LastName { get; set; }
-    int Age { get; set; }
-    bool CanDrink { get; set; }
-    string Name => $"{FirstName} {LastName}".Trim();
-    bool IsUnder18
-    {
-        get => Age >= 18;
-        set
-        {
-            Age = value ? 18 : 17;
-            CanDrink = !IsUnder18;
-        }
-    }
+    public partial Authentication? Authentication { get; set; }
+
+    public bool IsAuthenticated => Authentication is { Token.Length: 0 } or { CanLogin: false };
 }
 ```
 
 should generates the following view model class (based on the previous definition example):
 
 ```csharp
-public partial class User : ViewModelBase, IUser 
-{
-    private string 
-        _firstName;
-    private int 
-        _age;
-    private bool 
-        _canDrink;
+//<auto generated>
+#nullable enable
 
-    private static readonly PropertyChangedEventArgs
-        _nameChangedEvtArg = new("Name"),
-        _isUnder18ChangedEvtArg = new("IsUnder18"),
-        _firstNameChangedEvtArg = new("FirstName"),
-        _ageChangedEvtArg = new("Age"),
-        _canDrinkChangedEvtArg = new("CanDrink");
+namespace FacilCuba.ViewModels;
 
-    public string Name => $"{FirstName} {LastName}".Trim();
-
-    public bool IsUnder18 { 
-        get => Age >= 18;
-        set {
-            Age = value ? 18 : 17;
-            if (IsUnder18) CanDrink = true; else CanDrink = false;
-            OnPropertyChanged(_isUnder18ChangedEvtArg);
-        }
-    }
-
-    public string FirstName
+public partial class AppManager : global::SourceCrafter.Mvvm.ViewModelBase
+{    
+    public partial global::SourceCrafter.ViewModel.UnitTests.User? User 
     {
-        get => _firstName;
-        set {
-            if(value == _firstName) 
+        get;
+        set 
+        {
+            if(Equals(value, field))
                 return;
-            _firstName = value;
-            OnPropertyChanged(_firstNameChangedEvtArg);
-            OnPropertyChanged(_nameChangedEvtArg);
+            field = value;
+            OnPropertyChanged(new("User"));
         }
     }
-
-    public string? LastName { get; set; }
-
-    public int Age
+    
+    public partial global::FacilCuba.ViewModels.Authentication? Authentication 
     {
-        get => _age;
-        set {
-            if(value == _age) 
+        get;
+        set 
+        {
+            if(Equals(value, field))
                 return;
-            _age = value;
-            OnPropertyChanged(_ageChangedEvtArg);
-            OnPropertyChanged(_isUnder18ChangedEvtArg);
+            field = value;
+            NotifyChange(new("Authentication"));
         }
     }
 
-    public bool CanDrink
+    protected void NotifyChange(global::System.ComponentModel.PropertyChangedEventArgs evtArgs) 
     {
-        get => _canDrink;
-        set {
-            if(value == _canDrink) 
-                return;
-            _canDrink = value;
-            OnPropertyChanged(_canDrinkChangedEvtArg);
-            OnPropertyChanged(_isUnder18ChangedEvtArg);
+        OnPropertyChanged(evtArgs);
+        switch(evtArgs.PropertyName)
+        {
+            case "Authentication":
+                (Authentication as global::SourceCrafter.Mvvm.IObservable)?.Subscribe((s0, e0) => 
+                {
+                    switch(e0.PropertyName)
+                    {
+                        case "Token":
+                            OnPropertyChanged(new("Authentication"));
+                            OnPropertyChanged(new("IsAuthenticated"));
+                        break;
+                        case "CanLogin":
+                            OnPropertyChanged(new("Authentication"));
+                            OnPropertyChanged(new("IsAuthenticated"));
+                        break;
+                    }
+                });
+                OnPropertyChanged(new("IsAuthenticated"));
+            break;
         }
     }
-
-    private partial bool CanExecuteAddParent(Role parameter);
-
-    private partial Task ExecuteAddParentAsync(Role parameter);
 }
+```

@@ -11,6 +11,7 @@ namespace SourceCrafter.Mvvm
         public event PropertyChangedEventHandler? PropertyChanged;
         public event PropertyChangingEventHandler? PropertyChanging;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected void Set<T>(ref T value, T newValue, [CallerMemberName] string propName = null!) where T : class
         {
             if (value != newValue) return;
@@ -22,9 +23,15 @@ namespace SourceCrafter.Mvvm
             PropertyChanged?.Invoke(this, new(propName));
         }
 
-        protected void OnPropertyChanged(PropertyChangedEventArgs propertyNameEvtArg) => PropertyChanged?.Invoke(this, propertyNameEvtArg);
-
-        protected void OnPropertyChanging(PropertyChangingEventArgs propertyNameEvtArg) => PropertyChanging?.Invoke(this, propertyNameEvtArg);
+        string? lastChangedProp = null;
+        protected virtual void OnPropertyChanged(PropertyChangedEventArgs propertyNameEvtArg) 
+        {
+            if (lastChangedProp == propertyNameEvtArg.PropertyName) return;
+            lastChangedProp = propertyNameEvtArg.PropertyName;
+            PropertyChanged?.Invoke(this, propertyNameEvtArg);
+            lastChangedProp = null;
+        }
+        protected virtual void OnPropertyChanging(PropertyChangingEventArgs propertyNameEvtArg) => PropertyChanging?.Invoke(this, propertyNameEvtArg);
 
         void IObservable.RaisePropertyChange(PropertyChangedEventArgs args) => OnPropertyChanged(args);
 
@@ -34,8 +41,7 @@ namespace SourceCrafter.Mvvm
         
         protected void Subscribe(PropertyChangedEventHandler handler)
         {
-            if (PropertyChanged?.GetInvocationList().Contains(handler) ?? false)
-                return;
+            PropertyChanged -= handler;
             PropertyChanged += handler;
         }
     }

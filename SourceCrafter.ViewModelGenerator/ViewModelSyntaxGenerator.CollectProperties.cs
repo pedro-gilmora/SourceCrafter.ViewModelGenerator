@@ -184,11 +184,6 @@ internal sealed partial class ViewModelSyntaxGenerator
                             {
                                 _lastNode = (_lastNode ?? currentNestedScope).AddDependencies(true, propName, prop);
                             }
-                            //For multiple output variable (patterns, ternary and switch expressions)
-                            //if (currentAssigning != null && currentScope.vars.TryGetValue(currentAssigning, out var parent))
-                            //    foreach (var item in parent)
-                            //        _lastNode = new Node(prop, item);
-                            //else
 
                             return true;
                         }

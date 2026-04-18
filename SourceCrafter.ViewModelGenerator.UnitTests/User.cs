@@ -1,7 +1,11 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 
+using Newtonsoft.Json.Linq;
+
 using SourceCrafter.Mvvm;
 using SourceCrafter.Mvvm.Attributes;
+
+using System.ComponentModel;
 
 namespace SourceCrafter.ViewModel.UnitTests
 {
@@ -14,27 +18,24 @@ namespace SourceCrafter.ViewModel.UnitTests
     }
 
     [Reactive]
-    public abstract partial class User : ViewModelBase
+    public partial class User
     {
         public string ActionName => $"Running action: {Action.Name}";
-        public virtual IAction Action { get; set; }
-        public virtual string FirstName { get; set; }
-        public virtual string? LastName { get; set; }
+        public partial IAction Action { get; set; }
+        public partial string FirstName { get; set; }
+        public partial string? LastName { get; set; }
         public string Name => $"{FirstName} {LastName}".Trim();
-        public virtual bool Is18 { get => Age == 18; set => Age = value ? 18 : Age; }
-        public virtual int Age { get; set; }
-        public virtual bool CanDrink { get; set; }
-        public virtual bool IsUnder18
-        {
-            get => Age < 18;
-            set
-            {
-                Age = (value && Age >= 18) ? 17 : Age;
+        public bool Is18 => Age == 18;
+        public partial int Age { get; set; }
+        public partial bool CanDrink { get; set; }
 
-                if (IsUnder18) 
-                    CanDrink = false; 
-                else 
-                    CanDrink = true;
+        protected override void OnPropertyChanged(PropertyChangedEventArgs propertyNameEvtArg)
+        {
+            base.OnPropertyChanged(propertyNameEvtArg);
+
+            if (propertyNameEvtArg.PropertyName == nameof(Age))
+            {
+                Age = (CanDrink = Age >= 18) ? 17 : Age;
             }
         }
     }

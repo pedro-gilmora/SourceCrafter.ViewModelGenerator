@@ -1,5 +1,5 @@
 ﻿using Xunit;
-using SourceCrafter.ViewModel.UnitTests.Implementation;
+using SourceCrafter.ViewModel.UnitTests;
 using FluentAssertions;
 
 namespace SourceCrafter.ViewModelGenerator.UnitTests
@@ -41,20 +41,24 @@ namespace SourceCrafter.ViewModelGenerator.UnitTests
                         r.Is18.Should().BeFalse();
                         break;
                     case 6:
-                        e.PropertyName.Should().Be(nameof(User.IsUnder18));
-                        r.IsUnder18.Should().BeTrue();
-                        break;
-                    case 7:
                         e.PropertyName.Should().Be(nameof(User.Age));
                         r.Age.Should().Be(18);
                         break;
+                    case 7:
+                        e.PropertyName.Should().Be(nameof(User.CanDrink));
+                        r.CanDrink.Should().BeTrue();
+                        break;
                     case 8:
-                        e.PropertyName.Should().Be(nameof(User.Is18));
-                        r.Is18.Should().BeTrue();
+                        e.PropertyName.Should().Be(nameof(User.Age));
+                        r.Age.Should().Be(17);
                         break;
                     case 9:
-                        e.PropertyName.Should().Be(nameof(User.IsUnder18));
-                        r.IsUnder18.Should().BeFalse();
+                        e.PropertyName.Should().Be(nameof(User.CanDrink));
+                        r.CanDrink.Should().BeFalse();
+                        break;
+                    case 10:
+                        e.PropertyName.Should().Be(nameof(User.Is18));
+                        r.Is18.Should().BeFalse();
                         break;
                 }
             };
